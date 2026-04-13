@@ -45,7 +45,10 @@ export function addNode(
  * Returns a shallow copy with `headId` updated.
  * Does not change pointer fields; gameplay code should set `next` / `prev`.
  */
-export function setHead(model: LinkedListModel, headId: NodeId | null): LinkedListModel {
+export function setHead(
+    model: LinkedListModel,
+    headId: NodeId | null,
+): LinkedListModel {
     return { ...model, headId };
 }
 
@@ -80,7 +83,8 @@ export function rechainSinglyInOrder(
             return model;
         }
         const old = nodes[id];
-        const nextId = i < orderedIds.length - 1 ? orderedIds[i + 1] ?? null : null;
+        const nextId =
+            i < orderedIds.length - 1 ? (orderedIds[i + 1] ?? null) : null;
         nodes[id] = { ...old, next: nextId, prev: null };
     }
 

@@ -1,8 +1,14 @@
 import { codeBridgeDiagram, codeHeadComment } from "../logic/code-from-model";
-import { traverseFromHead, type TraversalStep, type TraverseResult } from "../logic/traverse";
+import {
+    traverseFromHead,
+    type TraversalStep,
+    type TraverseResult,
+} from "../logic/traverse";
 
 /** One-line task text for the level (Phaser overlay + panel header). */
-export function buildTraversalQuestionLine(steps: readonly TraversalStep[]): string {
+export function buildTraversalQuestionLine(
+    steps: readonly TraversalStep[],
+): string {
     if (steps.length === 0) {
         return "Starting at head, follow no hops. Which node id do you reach?";
     }
@@ -71,7 +77,9 @@ function formatStructureIssues(model: LinkedListModel): {
     structureLines: string;
 } {
     const loose = validateLinkedListStructure(model);
-    const strict = validateLinkedListStructure(model, { requireReachableFromHead: true });
+    const strict = validateLinkedListStructure(model, {
+        requireReachableFromHead: true,
+    });
 
     const lines: string[] = [
         `Pointer / head checks: ${loose.ok ? "OK" : `${loose.issues.length} issue(s)`}`,
@@ -129,9 +137,11 @@ export function buildBridgeDemoPanelPayload(
         codeHintLine?: string;
     },
 ): BridgeDemoPanelPayload {
-    const questionLine = overrides?.questionLine ?? buildTraversalQuestionLine(steps);
+    const questionLine =
+        overrides?.questionLine ?? buildTraversalQuestionLine(steps);
     const dragHintLine = overrides?.dragHintLine ?? buildDragHintLine();
-    const codeHintLine = overrides?.codeHintLine ?? "// No code hint for this prompt yet.";
+    const codeHintLine =
+        overrides?.codeHintLine ?? "// No code hint for this prompt yet.";
     const comment = codeHeadComment(model);
     const diagram = codeBridgeDiagram(model);
 
@@ -150,7 +160,11 @@ export function buildBridgeDemoPanelPayload(
         traversalOutcome = `Cannot complete: ${tr.reason} (step index ${tr.stepIndex})`;
     }
 
-    const verificationLine = formatVerificationLine(tr, expectedAnswerNodeId, model);
+    const verificationLine = formatVerificationLine(
+        tr,
+        expectedAnswerNodeId,
+        model,
+    );
     const { structureOk, structureLines } = formatStructureIssues(model);
 
     return {

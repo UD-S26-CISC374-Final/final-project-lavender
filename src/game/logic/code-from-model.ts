@@ -36,7 +36,12 @@ function collectForwardChain(model: LinkedListModel): {
 }
 
 /** `head -> [5] -> [8] -> null` */
-function formatSingly(model: LinkedListModel, chain: BridgeNode[], stoppedReason: string, badId?: string): string {
+function formatSingly(
+    model: LinkedListModel,
+    chain: BridgeNode[],
+    stoppedReason: string,
+    badId?: string,
+): string {
     if (model.headId === null) {
         return "head -> null";
     }
@@ -78,7 +83,10 @@ function formatDoubly(
         return "head -> null";
     }
 
-    const leftOfFirst = chain[0].prev === null ? "null" : `[${valueLabel(model, chain[0].prev)}]`;
+    const leftOfFirst =
+        chain[0].prev === null ?
+            "null"
+        :   `[${valueLabel(model, chain[0].prev)}]`;
     let out = `${leftOfFirst} <- [${chain[0].value}]`;
 
     for (let i = 1; i < chain.length; i++) {
@@ -95,7 +103,10 @@ function formatDoubly(
         return out;
     }
 
-    out += last.next === null ? " -> null" : ` -> [${valueLabel(model, last.next)}]`;
+    out +=
+        last.next === null ?
+            " -> null"
+        :   ` -> [${valueLabel(model, last.next)}]`;
     return out;
 }
 

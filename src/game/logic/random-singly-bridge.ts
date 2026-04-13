@@ -1,4 +1,8 @@
-import type { BridgeNode, LinkedListModel, NodeId } from "../model/linked-list-model";
+import type {
+    BridgeNode,
+    LinkedListModel,
+    NodeId,
+} from "../model/linked-list-model";
 import { addNode, emptyModel, setHead } from "../model/linked-list-model";
 import { getForwardChainNodeIds } from "./forward-chain";
 import { traverseFromHead, type TraversalStep } from "./traverse";
@@ -21,7 +25,7 @@ export function generateRandomSinglyChain(length: number): LinkedListModel {
         if (!id) {
             continue;
         }
-        const nextId = i < n - 1 ? ids[i + 1] ?? null : null;
+        const nextId = i < n - 1 ? (ids[i + 1] ?? null) : null;
         const node: BridgeNode = {
             id,
             value: randInt(1, 99),
@@ -36,7 +40,10 @@ export function generateRandomSinglyChain(length: number): LinkedListModel {
 }
 
 /** A few `.next` hops that fit the current forward chain (for demo / auto tasks). */
-export function pickDemoNextSteps(model: LinkedListModel, maxSteps: number): TraversalStep[] {
+export function pickDemoNextSteps(
+    model: LinkedListModel,
+    maxSteps: number,
+): TraversalStep[] {
     const chain = getForwardChainNodeIds(model);
     const possible = Math.max(0, chain.length - 1);
     const count = Math.min(maxSteps, possible);
@@ -72,7 +79,9 @@ export function generateSinglyChainWithTraversalTask(
  * Random chain, then a random number of `.next` hops in `[1, chainLength - 1]`
  * (when the forward chain from head has at least 2 nodes). Every hop is valid and lands on an existing node — never more `.next`s than the list allows.
  */
-export function generateSinglyChainWithBoundedNextHops(length: number): GeneratedSinglyTask {
+export function generateSinglyChainWithBoundedNextHops(
+    length: number,
+): GeneratedSinglyTask {
     const model = generateRandomSinglyChain(length);
     const chain = getForwardChainNodeIds(model);
     const maxHops = chain.length - 1;
@@ -80,7 +89,10 @@ export function generateSinglyChainWithBoundedNextHops(length: number): Generate
         return { model, steps: [], answerNodeId: firstNodeId(model) };
     }
     const hopCount = randInt(1, maxHops);
-    const steps: TraversalStep[] = Array.from({ length: hopCount }, () => "next");
+    const steps: TraversalStep[] = Array.from(
+        { length: hopCount },
+        () => "next",
+    );
     const result = traverseFromHead(model, steps);
     const answerNodeId = result.ok ? result.nodeId : firstNodeId(model);
     return { model, steps, answerNodeId };

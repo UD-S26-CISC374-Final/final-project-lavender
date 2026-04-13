@@ -40,9 +40,8 @@ function App() {
     //  References to the PhaserGame component (game and scene are exposed)
     const phaserRef = useRef<IRefPhaserGame>(null);
     const [spritePosition, setSpritePosition] = useState({ x: 0, y: 0 });
-    const [bridgePanel, setBridgePanel] = useState<BridgeDemoPanelPayload | null>(
-        null,
-    );
+    const [bridgePanel, setBridgePanel] =
+        useState<BridgeDemoPanelPayload | null>(null);
 
     useEffect(() => {
         const onBridgePanel = (payload: BridgeDemoPanelPayload) => {
@@ -149,25 +148,32 @@ function App() {
                         Add New Sprite
                     </button>
                 </div>
-                {bridgePanel ? (
+                {bridgePanel ?
                     <div className="bridge-demo-panel">
-                        <p className="level-question">{bridgePanel.questionLine}</p>
+                        <p className="level-question">
+                            {bridgePanel.questionLine}
+                        </p>
                         <p className="drag-hint">{bridgePanel.dragHintLine}</p>
                         <div className="code-live-block">
-                            <div className="code-live-label">List as code (updates when you drag planks)</div>
+                            <div className="code-live-label">
+                                List as code (updates when you drag planks)
+                            </div>
                             <pre>{bridgePanel.comment}</pre>
                             <pre>{bridgePanel.diagram}</pre>
                             <pre>{bridgePanel.codeHintLine}</pre>
                         </div>
                         <p className={bridgePanel.structureOk ? "ok" : "warn"}>
-                            Structure: {bridgePanel.structureOk ? "OK" : "See details"}
+                            Structure:{" "}
+                            {bridgePanel.structureOk ? "OK" : "See details"}
                         </p>
                         <pre>{bridgePanel.traversalDescription}</pre>
                         <pre>{bridgePanel.traversalOutcome}</pre>
-                        <pre className="verification">{bridgePanel.verificationLine}</pre>
+                        <pre className="verification">
+                            {bridgePanel.verificationLine}
+                        </pre>
                         <pre>{bridgePanel.structureLines}</pre>
                     </div>
-                ) : null}
+                :   null}
             </div>
         </div>
     );

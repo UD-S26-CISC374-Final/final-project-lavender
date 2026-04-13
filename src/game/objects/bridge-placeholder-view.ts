@@ -110,9 +110,13 @@ export class BridgePlaceholderView {
         const sorted = [...this.tileContainers].sort(
             (a, b) =>
                 a.x - b.x ||
-                String(a.getData("nodeId")).localeCompare(String(b.getData("nodeId"))),
+                String(a.getData("nodeId")).localeCompare(
+                    String(b.getData("nodeId")),
+                ),
         );
-        const orderedIds = sorted.map((container): NodeId => String(container.getData("nodeId")));
+        const orderedIds = sorted.map(
+            (container): NodeId => String(container.getData("nodeId")),
+        );
         const nextModel = rechainSinglyInOrder(this.lastModel, orderedIds);
         this.onChainUpdated(nextModel);
     };

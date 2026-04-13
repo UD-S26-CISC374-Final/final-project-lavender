@@ -71,11 +71,15 @@ export class Level1 extends Scene {
             steps: [],
             answerNodeId: largestNodeId,
             type: "drag_largest_to_last",
-            questionLine: "Move the tile with the largest value to the last node.",
+            questionLine:
+                "Move the tile with the largest value to the last node.",
         };
     }
 
-    private findLargestNodeId(chainIds: readonly NodeId[], model: LinkedListModel): NodeId {
+    private findLargestNodeId(
+        chainIds: readonly NodeId[],
+        model: LinkedListModel,
+    ): NodeId {
         let largestId = model.headId ?? "";
         if (chainIds.length > 0) {
             largestId = chainIds[0] ?? largestId;
@@ -91,7 +95,10 @@ export class Level1 extends Scene {
         return largestId;
     }
 
-    private buildCodeHintLine(model: LinkedListModel, targetNodeId: NodeId): string {
+    private buildCodeHintLine(
+        model: LinkedListModel,
+        targetNodeId: NodeId,
+    ): string {
         const chain = getForwardChainNodeIds(model);
         const index = chain.indexOf(targetNodeId);
         if (index <= 0) {
@@ -105,28 +112,36 @@ export class Level1 extends Scene {
     }
 
     private createRoundTask(): RoundTask {
-        const type = Phaser.Math.Between(0, 1) === 0 ? "traversal_click" : "drag_largest_to_last";
-        return type === "traversal_click"
-            ? this.buildTraversalClickQuestion()
-            : this.buildLargestToLastQuestion();
+        const type =
+            Phaser.Math.Between(0, 1) === 0 ?
+                "traversal_click"
+            :   "drag_largest_to_last";
+        return type === "traversal_click" ?
+                this.buildTraversalClickQuestion()
+            :   this.buildLargestToLastQuestion();
     }
 
     private pushPanelPayload(nextModel: LinkedListModel): void {
         const dragHintLine =
-            this.currentQuestionType === "drag_largest_to_last"
-                ? "Drag tiles to reorder the linked list, then press Submit."
-                : "Click a tile to select your answer, then press Submit.";
+            this.currentQuestionType === "drag_largest_to_last" ?
+                "Drag tiles to reorder the linked list, then press Submit."
+            :   "Click a tile to select your answer, then press Submit.";
         const codeHintLine =
-            this.currentQuestionType === "drag_largest_to_last"
-                ? this.buildCodeHintLine(nextModel, this.taskAnswerNodeId)
-                : "// Click-question mode: follow head.next hops mentally.";
+            this.currentQuestionType === "drag_largest_to_last" ?
+                this.buildCodeHintLine(nextModel, this.taskAnswerNodeId)
+            :   "// Click-question mode: follow head.next hops mentally.";
         EventBus.emit(
             BRIDGE_DEMO_PANEL_EVENT,
-            buildBridgeDemoPanelPayload(nextModel, this.taskSteps, this.taskAnswerNodeId, {
-                questionLine: this.currentQuestionLine,
-                dragHintLine,
-                codeHintLine,
-            }),
+            buildBridgeDemoPanelPayload(
+                nextModel,
+                this.taskSteps,
+                this.taskAnswerNodeId,
+                {
+                    questionLine: this.currentQuestionLine,
+                    dragHintLine,
+                    codeHintLine,
+                },
+            ),
         );
     }
 
@@ -137,8 +152,14 @@ export class Level1 extends Scene {
     private readonly applyModelAndRedraw = (next: LinkedListModel) => {
         this.currentModel = next;
         this.pushPanelPayload(next);
-        this.bridgeView.drawFromModel(next, this.applyModelAndRedraw, this.onTileSelected);
-        this.bridgeView.setDragEnabled(this.currentQuestionType === "drag_largest_to_last");
+        this.bridgeView.drawFromModel(
+            next,
+            this.applyModelAndRedraw,
+            this.onTileSelected,
+        );
+        this.bridgeView.setDragEnabled(
+            this.currentQuestionType === "drag_largest_to_last",
+        );
     };
 
     private updateScoreboardText(): void {
@@ -153,7 +174,10 @@ export class Level1 extends Scene {
             return false;
         }
         if (this.currentQuestionType === "traversal_click") {
-            return this.selectedNodeId !== null && this.selectedNodeId === this.taskAnswerNodeId;
+            return (
+                this.selectedNodeId !== null &&
+                this.selectedNodeId === this.taskAnswerNodeId
+            );
         }
         const chain = getForwardChainNodeIds(this.currentModel);
         if (chain.length === 0) {
