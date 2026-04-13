@@ -10,6 +10,7 @@ const TILE_H = 52;
 const STEP_X = 108;
 
 type ChainUpdated = (next: LinkedListModel) => void;
+type TileSelected = (nodeId: NodeId) => void;
 
 /**
  * Placeholder planks + ropes + hiker. Planks are draggable; dropping re-links `.next`
@@ -19,40 +20,109 @@ export class BridgePlaceholderView {
     private readonly scene: Scene;
     private layer: Phaser.GameObjects.Container | null = null;
     private tileContainers: Phaser.GameObjects.Container[] = [];
+    private tileByNodeId = new Map<NodeId, Phaser.GameObjects.Container>();
+    private ropeGraphics: Phaser.GameObjects.Graphics[] = [];
     private lastModel: LinkedListModel | null = null;
     private onChainUpdated: ChainUpdated | null = null;
+    private onTileSelected: TileSelected | null = null;
     private bridgeWorldY = 430;
+    private layoutStartX = 240;
     private dragMinX = 160;
     private dragMaxX = 920;
     private dragListening = false;
+    private dragEnabled = true;
+    private selectedTileNodeId: NodeId | null = null;
+    /** Chain order when the current drag began (insertion reordering uses this as the base). */
+    private orderAtDragStart: NodeId[] = [];
+    private draggingNodeId: NodeId | null = null;
 
     private readonly onDragStart = (
         _pointer: Phaser.Input.Pointer,
         gameObject: Phaser.GameObjects.GameObject,
     ) => {
-        (gameObject as Phaser.GameObjects.Container).setDepth(30);
+        if (!this.lastModel || this.tileContainers.length === 0) {
+            return;
+        }
+        const c = gameObject as Phaser.GameObjects.Container;
+        c.setDepth(30);
+        this.orderAtDragStart = [...getForwardChainNodeIds(this.lastModel)];
+        this.draggingNodeId = String(c.getData("nodeId"));
+        for (const g of this.ropeGraphics) {
+            g.setVisible(false);
+        }
     };
 
     private readonly onDrag = (
         _pointer: Phaser.Input.Pointer,
-        gameObject: Phaser.GameObjects.GameObject,
+        _gameObject: Phaser.GameObjects.GameObject,
         dragX: number,
     ) => {
-        const c = gameObject as Phaser.GameObjects.Container;
-        c.x = Phaser.Math.Clamp(dragX, this.dragMinX, this.dragMaxX);
-        c.y = this.bridgeWorldY;
+        if (
+            !this.draggingNodeId ||
+            this.orderAtDragStart.length === 0 ||
+            !this.lastModel
+        ) {
+            return;
+        }
+        const n = this.orderAtDragStart.length;
+        const clampedX = Phaser.Math.Clamp(dragX, this.dragMinX, this.dragMaxX);
+
+        const insertIndex = Phaser.Math.Clamp(
+            Math.round((clampedX - this.layoutStartX) / STEP_X),
+            0,
+            n - 1,
+        );
+        const without = this.orderAtDragStart.filter(
+            (id) => id !== this.draggingNodeId,
+        );
+        const tentative: NodeId[] = [...without];
+        tentative.splice(insertIndex, 0, this.draggingNodeId);
+
+        tentative.forEach((id, slot) => {
+            const tile = this.tileByNodeId.get(id);
+            if (!tile) {
+                return;
+            }
+            tile.x = this.layoutStartX + slot * STEP_X;
+            tile.y = this.bridgeWorldY;
+        });
     };
 
-    private readonly onDragEnd = () => {
-        if (!this.onChainUpdated || !this.lastModel || this.tileContainers.length === 0) {
+    private readonly onDragEnd = (
+        pointer: Phaser.Input.Pointer,
+        gameObject: Phaser.GameObjects.GameObject,
+    ) => {
+        void pointer;
+        void gameObject;
+        for (const g of this.ropeGraphics) {
+            g.setVisible(true);
+        }
+        this.draggingNodeId = null;
+        this.orderAtDragStart = [];
+
+        if (
+            !this.onChainUpdated ||
+            !this.lastModel ||
+            this.tileContainers.length === 0
+        ) {
             return;
         }
         const sorted = [...this.tileContainers].sort(
-            (a, b) => a.x - b.x || String(a.getData("nodeId")).localeCompare(String(b.getData("nodeId"))),
+            (a, b) =>
+                a.x - b.x ||
+                String(a.getData("nodeId")).localeCompare(String(b.getData("nodeId"))),
         );
-        const orderedIds = sorted.map((c): NodeId => String(c.getData("nodeId")));
+        const orderedIds = sorted.map((container): NodeId => String(container.getData("nodeId")));
         const nextModel = rechainSinglyInOrder(this.lastModel, orderedIds);
         this.onChainUpdated(nextModel);
+    };
+
+    private readonly onTilePointerDown = (nodeId: NodeId) => {
+        this.selectedTileNodeId = nodeId;
+        this.refreshSelectionVisuals();
+        if (this.onTileSelected) {
+            this.onTileSelected(nodeId);
+        }
     };
 
     constructor(scene: Scene) {
@@ -64,8 +134,14 @@ export class BridgePlaceholderView {
         this.layer?.destroy(true);
         this.layer = null;
         this.tileContainers = [];
+        this.tileByNodeId.clear();
+        this.ropeGraphics = [];
         this.lastModel = null;
         this.onChainUpdated = null;
+        this.onTileSelected = null;
+        this.selectedTileNodeId = null;
+        this.orderAtDragStart = [];
+        this.draggingNodeId = null;
     }
 
     private stopDragInput(): void {
@@ -91,11 +167,16 @@ export class BridgePlaceholderView {
     /**
      * @param onChainUpdated Called after a drop with a new model (left → right = `head` → `.next` chain).
      */
-    drawFromModel(model: LinkedListModel, onChainUpdated?: ChainUpdated): void {
+    drawFromModel(
+        model: LinkedListModel,
+        onChainUpdated?: ChainUpdated,
+        onTileSelected?: TileSelected,
+    ): void {
         this.destroy();
 
         this.lastModel = model;
         this.onChainUpdated = onChainUpdated ?? null;
+        this.onTileSelected = onTileSelected ?? null;
 
         const root = this.scene.add.container(0, 0);
         root.setDepth(5);
@@ -104,6 +185,9 @@ export class BridgePlaceholderView {
         const chain = getForwardChainNodeIds(model);
         this.bridgeWorldY = 430;
         const startX = 240;
+        this.layoutStartX = startX;
+        this.ropeGraphics = [];
+        this.tileByNodeId.clear();
         const w = this.scene.scale.width;
         this.dragMinX = Math.max(120, Math.floor(w * 0.08));
         this.dragMaxX = Math.min(w - 120, Math.floor(w * 0.92));
@@ -150,7 +234,13 @@ export class BridgePlaceholderView {
 
             const rope = this.scene.add.graphics();
             rope.lineStyle(5, 0xcbb69a, 0.95);
-            rope.lineBetween(ropeFromX, this.bridgeWorldY, cx - TILE_W / 2, this.bridgeWorldY);
+            rope.lineBetween(
+                ropeFromX,
+                this.bridgeWorldY,
+                cx - TILE_W / 2,
+                this.bridgeWorldY,
+            );
+            this.ropeGraphics.push(rope);
             root.add(rope);
 
             const tile = this.scene.add.container(cx, this.bridgeWorldY);
@@ -176,16 +266,26 @@ export class BridgePlaceholderView {
 
             tile.add([plank, valueLabel, idHint]);
 
-            const hitArea = new Phaser.Geom.Rectangle(-TILE_W / 2, -32, TILE_W, TILE_H + 40);
+            const hitArea = new Phaser.Geom.Rectangle(
+                -TILE_W / 2,
+                -32,
+                TILE_W,
+                TILE_H + 40,
+            );
             tile.setInteractive(
                 hitArea,
                 (r: Phaser.Geom.Rectangle, x: number, y: number) =>
                     Phaser.Geom.Rectangle.Contains(r, x, y),
             );
-            this.scene.input.setDraggable(tile);
+            tile.on("pointerdown", () => {
+                const tileId = String(tile.getData("nodeId"));
+                this.onTilePointerDown(tileId);
+            });
+            this.scene.input.setDraggable(tile, this.dragEnabled);
 
             root.add(tile);
             this.tileContainers.push(tile);
+            this.tileByNodeId.set(id, tile);
 
             ropeFromX = cx + TILE_W / 2;
         }
@@ -194,13 +294,21 @@ export class BridgePlaceholderView {
             const lastCx = startX + (chain.length - 1) * STEP_X + TILE_W / 2;
             const ropeEnd = this.scene.add.graphics();
             ropeEnd.lineStyle(5, 0xcbb69a, 0.95);
-            ropeEnd.lineBetween(lastCx, this.bridgeWorldY, rightBankX - 55, this.bridgeWorldY);
+            ropeEnd.lineBetween(
+                lastCx,
+                this.bridgeWorldY,
+                rightBankX - 55,
+                this.bridgeWorldY,
+            );
+            this.ropeGraphics.push(ropeEnd);
             root.add(ropeEnd);
         }
 
         const hikerX = 130;
         const hikerY = this.bridgeWorldY - 95;
-        const hiker = this.scene.add.circle(hikerX, hikerY, 18, 0x42a5f5).setStrokeStyle(3, 0x0d47a1);
+        const hiker = this.scene.add
+            .circle(hikerX, hikerY, 18, 0x42a5f5)
+            .setStrokeStyle(3, 0x0d47a1);
         const hikerTag = this.scene.add
             .text(hikerX, hikerY - 32, "Hiker", {
                 fontFamily: "Arial",
@@ -211,8 +319,56 @@ export class BridgePlaceholderView {
         root.add(hiker);
         root.add(hikerTag);
 
+        this.refreshSelectionVisuals();
+
+        if (
+            this.dragEnabled &&
+            this.tileContainers.length > 0 &&
+            this.onChainUpdated
+        ) {
+            this.startDragInput();
+        }
+    }
+
+    setDragEnabled(enabled: boolean): void {
+        this.dragEnabled = enabled;
+        for (const tile of this.tileContainers) {
+            this.scene.input.setDraggable(tile, enabled);
+        }
+        if (!enabled) {
+            this.stopDragInput();
+            return;
+        }
         if (this.tileContainers.length > 0 && this.onChainUpdated) {
             this.startDragInput();
+        }
+    }
+
+    clearSelection(): void {
+        this.selectedTileNodeId = null;
+        this.refreshSelectionVisuals();
+    }
+
+    getSelectedNodeId(): NodeId | null {
+        return this.selectedTileNodeId;
+    }
+
+    private refreshSelectionVisuals(): void {
+        for (const tile of this.tileContainers) {
+            const nodeId = String(tile.getData("nodeId"));
+            const plank = tile.list.find(
+                (item): item is Phaser.GameObjects.Rectangle =>
+                    item instanceof Phaser.GameObjects.Rectangle,
+            );
+            if (!plank) {
+                continue;
+            }
+            const isSelected = this.selectedTileNodeId === nodeId;
+            plank.setFillStyle(isSelected ? 0xf7d774 : 0xa1887f);
+            plank.setStrokeStyle(
+                isSelected ? 4 : 2,
+                isSelected ? 0xfff59d : 0x5d4037,
+            );
         }
     }
 }

@@ -157,6 +157,7 @@ function App() {
                             <div className="code-live-label">List as code (updates when you drag planks)</div>
                             <pre>{bridgePanel.comment}</pre>
                             <pre>{bridgePanel.diagram}</pre>
+                            <pre>{bridgePanel.codeHintLine}</pre>
                         </div>
                         <p className={bridgePanel.structureOk ? "ok" : "warn"}>
                             Structure: {bridgePanel.structureOk ? "OK" : "See details"}

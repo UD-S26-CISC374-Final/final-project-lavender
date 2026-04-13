@@ -67,3 +67,21 @@ export function generateSinglyChainWithTraversalTask(
     const answerNodeId = result.ok ? result.nodeId : firstNodeId(model);
     return { model, steps, answerNodeId };
 }
+
+/**
+ * Random chain, then a random number of `.next` hops in `[1, chainLength - 1]`
+ * (when the forward chain from head has at least 2 nodes). Every hop is valid and lands on an existing node — never more `.next`s than the list allows.
+ */
+export function generateSinglyChainWithBoundedNextHops(length: number): GeneratedSinglyTask {
+    const model = generateRandomSinglyChain(length);
+    const chain = getForwardChainNodeIds(model);
+    const maxHops = chain.length - 1;
+    if (maxHops < 1) {
+        return { model, steps: [], answerNodeId: firstNodeId(model) };
+    }
+    const hopCount = randInt(1, maxHops);
+    const steps: TraversalStep[] = Array.from({ length: hopCount }, () => "next");
+    const result = traverseFromHead(model, steps);
+    const answerNodeId = result.ok ? result.nodeId : firstNodeId(model);
+    return { model, steps, answerNodeId };
+}

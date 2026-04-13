@@ -25,6 +25,7 @@ export const BRIDGE_DEMO_PANEL_EVENT = "bridge-demo-panel";
 export type BridgeDemoPanelPayload = {
     questionLine: string;
     dragHintLine: string;
+    codeHintLine: string;
     /** Live code: comment + diagram update when the list changes. */
     comment: string;
     diagram: string;
@@ -122,9 +123,15 @@ export function buildBridgeDemoPanelPayload(
     model: LinkedListModel,
     steps: readonly TraversalStep[],
     expectedAnswerNodeId?: NodeId,
+    overrides?: {
+        questionLine?: string;
+        dragHintLine?: string;
+        codeHintLine?: string;
+    },
 ): BridgeDemoPanelPayload {
-    const questionLine = buildTraversalQuestionLine(steps);
-    const dragHintLine = buildDragHintLine();
+    const questionLine = overrides?.questionLine ?? buildTraversalQuestionLine(steps);
+    const dragHintLine = overrides?.dragHintLine ?? buildDragHintLine();
+    const codeHintLine = overrides?.codeHintLine ?? "// No code hint for this prompt yet.";
     const comment = codeHeadComment(model);
     const diagram = codeBridgeDiagram(model);
 
@@ -149,6 +156,7 @@ export function buildBridgeDemoPanelPayload(
     return {
         questionLine,
         dragHintLine,
+        codeHintLine,
         comment,
         diagram,
         traversalDescription,
