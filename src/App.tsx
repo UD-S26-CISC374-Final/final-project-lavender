@@ -1,8 +1,13 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { IRefPhaserGame } from "./PhaserGame";
 import { PhaserGame } from "./PhaserGame";
 import Phaser from "phaser";
 import type { ChangeableScene } from "./game/reactable-scene";
+import {
+    BRIDGE_DEMO_PANEL_EVENT,
+    type BridgeDemoPanelPayload,
+} from "./game/demo/bridge-demo-panel";
+import { EventBus } from "./game/event-bus";
 
 /**
  * React Component that wraps the Phaser game and provides UI controls
@@ -35,6 +40,19 @@ function App() {
     //  References to the PhaserGame component (game and scene are exposed)
     const phaserRef = useRef<IRefPhaserGame>(null);
     const [spritePosition, setSpritePosition] = useState({ x: 0, y: 0 });
+    const [bridgePanel, setBridgePanel] = useState<BridgeDemoPanelPayload | null>(
+        null,
+    );
+
+    useEffect(() => {
+        const onBridgePanel = (payload: BridgeDemoPanelPayload) => {
+            setBridgePanel(payload);
+        };
+        EventBus.on(BRIDGE_DEMO_PANEL_EVENT, onBridgePanel);
+        return () => {
+            EventBus.off(BRIDGE_DEMO_PANEL_EVENT, onBridgePanel);
+        };
+    }, []);
 
     // Change the current scene by invoking the changeScene method
     const changeScene = () => {
@@ -94,14 +112,19 @@ function App() {
     // Event emitted from the PhaserGame component
     const onCurrentSceneChange = (scene: Phaser.Scene) => {
         setCanMoveSprite(scene.scene.key !== "MainMenu");
+        if (scene.scene.key !== "Level1") {
+            setBridgePanel(null);
+        }
     };
 
     return (
         <div id="app">
-            <PhaserGame
-                ref={phaserRef}
-                onCurrentActiveSceneChange={onCurrentSceneChange}
-            />
+            <div className="game-shell">
+                <PhaserGame
+                    ref={phaserRef}
+                    onCurrentActiveSceneChange={onCurrentSceneChange}
+                />
+            </div>
             <div id="ui-panel">
                 <div>
                     <button className="button" onClick={changeScene}>
@@ -126,6 +149,25 @@ function App() {
                         Add New Sprite
                     </button>
                 </div>
+                {bridgePanel ? (
+                    <div className="bridge-demo-panel">
+                        <p className="level-question">{bridgePanel.questionLine}</p>
+                        <p className="drag-hint">{bridgePanel.dragHintLine}</p>
+                        <div className="code-live-block">
+                            <div className="code-live-label">List as code (updates when you drag planks)</div>
+                            <pre>{bridgePanel.comment}</pre>
+                            <pre>{bridgePanel.diagram}</pre>
+                            <pre>{bridgePanel.codeHintLine}</pre>
+                        </div>
+                        <p className={bridgePanel.structureOk ? "ok" : "warn"}>
+                            Structure: {bridgePanel.structureOk ? "OK" : "See details"}
+                        </p>
+                        <pre>{bridgePanel.traversalDescription}</pre>
+                        <pre>{bridgePanel.traversalOutcome}</pre>
+                        <pre className="verification">{bridgePanel.verificationLine}</pre>
+                        <pre>{bridgePanel.structureLines}</pre>
+                    </div>
+                ) : null}
             </div>
         </div>
     );
