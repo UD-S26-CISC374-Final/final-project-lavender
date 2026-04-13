@@ -6,6 +6,7 @@ import {
     buildBridgeDemoPanelPayload,
 } from "../demo/bridge-demo-panel";
 import type { TraversalStep } from "../logic/traverse";
+import type { TraverseResult } from "../logic/traverse";
 import { traverseFromHead, traverseFromNode } from "../logic/traverse";
 import {
     generateIndexedDoublyTraversalTask,
@@ -266,14 +267,13 @@ export class Level1 extends Scene {
         traversalOutcome: string;
         verificationLine: string;
     } {
-        const tr =
-            this.currentTraversalStartNodeId !== undefined ?
-                traverseFromNode(
-                    model,
-                    this.currentTraversalStartNodeId,
-                    this.taskSteps,
-                )
-            :   traverseFromHead(model, this.taskSteps);
+        const startNodeId = this.currentTraversalStartNodeId;
+        const steps: readonly TraversalStep[] = this.taskSteps;
+        const tr: TraverseResult =
+            startNodeId !== undefined ?
+                traverseFromNode(model, startNodeId, steps)
+            :   traverseFromHead(model, steps);
+
         if (!tr.ok) {
             return {
                 traversalOutcome: `Cannot complete: ${tr.reason} (step index ${tr.stepIndex})`,
