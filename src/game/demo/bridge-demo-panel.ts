@@ -1,6 +1,7 @@
 import { codeBridgeDiagram, codeHeadComment } from "../logic/code-from-model";
 import {
     traverseFromHead,
+    traverseFromNode,
     type TraversalStep,
     type TraverseResult,
 } from "../logic/traverse";
@@ -135,6 +136,11 @@ export function buildBridgeDemoPanelPayload(
         questionLine?: string;
         dragHintLine?: string;
         codeHintLine?: string;
+        traversalStartNodeId?: NodeId;
+        traversalStartLabel?: string;
+        traversalDescription?: string;
+        traversalOutcome?: string;
+        verificationLine?: string;
     },
 ): BridgeDemoPanelPayload {
     const questionLine =
@@ -145,22 +151,27 @@ export function buildBridgeDemoPanelPayload(
     const comment = codeHeadComment(model);
     const diagram = codeBridgeDiagram(model);
 
-    const tr = traverseFromHead(model, steps);
-    const traversalDescription = `Traversal: head${steps.map((s) => `.${s}`).join("")}`;
+    const traversalStartNodeId = overrides?.traversalStartNodeId;
+    const startLabel = overrides?.traversalStartLabel ?? "head";
+    const tr =
+        traversalStartNodeId !== undefined ?
+            traverseFromNode(model, traversalStartNodeId, steps)
+        :   traverseFromHead(model, steps);
+    const defaultTraversalDescription = `Traversal: ${startLabel}${steps.map((s) => `.${s}`).join("")}`;
 
-    let traversalOutcome: string;
+    let defaultTraversalOutcome: string;
     if (tr.ok) {
         if (!(tr.nodeId in model.nodes)) {
-            traversalOutcome = `Unexpected: missing node "${tr.nodeId}"`;
+            defaultTraversalOutcome = `Unexpected: missing node "${tr.nodeId}"`;
         } else {
             const v = model.nodes[tr.nodeId].value;
-            traversalOutcome = `Lands on node "${tr.nodeId}" (value ${v})`;
+            defaultTraversalOutcome = `Lands on node "${tr.nodeId}" (value ${v})`;
         }
     } else {
-        traversalOutcome = `Cannot complete: ${tr.reason} (step index ${tr.stepIndex})`;
+        defaultTraversalOutcome = `Cannot complete: ${tr.reason} (step index ${tr.stepIndex})`;
     }
 
-    const verificationLine = formatVerificationLine(
+    const defaultVerificationLine = formatVerificationLine(
         tr,
         expectedAnswerNodeId,
         model,
@@ -173,9 +184,12 @@ export function buildBridgeDemoPanelPayload(
         codeHintLine,
         comment,
         diagram,
-        traversalDescription,
-        traversalOutcome,
-        verificationLine,
+        traversalDescription:
+            overrides?.traversalDescription ?? defaultTraversalDescription,
+        traversalOutcome:
+            overrides?.traversalOutcome ?? defaultTraversalOutcome,
+        verificationLine:
+            overrides?.verificationLine ?? defaultVerificationLine,
         structureOk,
         structureLines,
     };

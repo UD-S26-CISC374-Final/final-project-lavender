@@ -11,6 +11,7 @@ const STEP_X = 108;
 
 type ChainUpdated = (next: LinkedListModel) => void;
 type TileSelected = (nodeId: NodeId) => void;
+type NodeLabelById = ReadonlyMap<NodeId, string>;
 
 /**
  * Placeholder planks + ropes + hiker. Planks are draggable; dropping re-links `.next`
@@ -175,6 +176,7 @@ export class BridgePlaceholderView {
         model: LinkedListModel,
         onChainUpdated?: ChainUpdated,
         onTileSelected?: TileSelected,
+        nodeLabelById?: NodeLabelById,
     ): void {
         this.destroy();
 
@@ -261,7 +263,7 @@ export class BridgePlaceholderView {
                 })
                 .setOrigin(0.5);
             const idHint = this.scene.add
-                .text(0, 30, id, {
+                .text(0, 30, nodeLabelById?.get(id) ?? id, {
                     fontFamily: "Arial",
                     fontSize: 11,
                     color: "#efebe9",

@@ -22,22 +22,19 @@ export type TraverseErr = {
 export type TraverseResult = TraverseOk | TraverseErr;
 
 /**
- * Start at `model.headId` and follow `.next` / `.prev` for each step.
+ * Start at `startNodeId` and follow `.next` / `.prev` for each step.
  * Singly-linked lists cannot use `"prev"`.
- * Empty `steps` means "stay on the node `head` points to".
  */
-export function traverseFromHead(
+export function traverseFromNode(
     model: LinkedListModel,
+    startNodeId: NodeId,
     steps: readonly TraversalStep[],
 ): TraverseResult {
-    if (model.headId === null) {
-        return { ok: false, reason: "no_head", stepIndex: 0 };
-    }
-    if (!(model.headId in model.nodes)) {
-        return { ok: false, reason: "head_missing", stepIndex: 0 };
+    if (!(startNodeId in model.nodes)) {
+        return { ok: false, reason: "missing_node", stepIndex: 0 };
     }
 
-    let current: NodeId = model.headId;
+    let current: NodeId = startNodeId;
 
     for (let i = 0; i < steps.length; i++) {
         const step = steps[i];
@@ -70,4 +67,23 @@ export function traverseFromHead(
     }
 
     return { ok: true, nodeId: current };
+}
+
+/**
+ * Start at `model.headId` and follow `.next` / `.prev` for each step.
+ * Singly-linked lists cannot use `"prev"`.
+ * Empty `steps` means "stay on the node `head` points to".
+ */
+export function traverseFromHead(
+    model: LinkedListModel,
+    steps: readonly TraversalStep[],
+): TraverseResult {
+    if (model.headId === null) {
+        return { ok: false, reason: "no_head", stepIndex: 0 };
+    }
+    if (!(model.headId in model.nodes)) {
+        return { ok: false, reason: "head_missing", stepIndex: 0 };
+    }
+
+    return traverseFromNode(model, model.headId, steps);
 }
