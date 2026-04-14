@@ -252,8 +252,13 @@ export class BridgePlaceholderView {
             const tile = this.scene.add.container(cx, this.bridgeWorldY);
             tile.setData("nodeId", id);
 
-            const plank = this.scene.add
-                .rectangle(0, 0, TILE_W, TILE_H, 0xa1887f)
+            // Use a pixel-art image for the plank and a transparent rectangle as a border
+            const plankImage = this.scene.add
+                .image(0, 0, "tile")
+                .setOrigin(0.5)
+                .setDisplaySize(TILE_W, TILE_H);
+            const plankBorder = this.scene.add
+                .rectangle(0, 0, TILE_W, TILE_H, 0x000000, 0)
                 .setStrokeStyle(2, 0x5d4037);
             const valueLabel = this.scene.add
                 .text(0, 0, String(node.value), {
@@ -270,7 +275,7 @@ export class BridgePlaceholderView {
                 })
                 .setOrigin(0.5);
 
-            tile.add([plank, valueLabel, idHint]);
+            tile.add([plankImage, plankBorder, valueLabel, idHint]);
 
             const hitArea = new Phaser.Geom.Rectangle(
                 -TILE_W / 2,
@@ -362,19 +367,24 @@ export class BridgePlaceholderView {
     private refreshSelectionVisuals(): void {
         for (const tile of this.tileContainers) {
             const nodeId = String(tile.getData("nodeId"));
-            const plank = tile.list.find(
+            const image = tile.list.find(
+                (item): item is Phaser.GameObjects.Image =>
+                    item instanceof Phaser.GameObjects.Image,
+            );
+            const border = tile.list.find(
                 (item): item is Phaser.GameObjects.Rectangle =>
                     item instanceof Phaser.GameObjects.Rectangle,
             );
-            if (!plank) {
+            if (!image || !border) {
                 continue;
             }
             const isSelected = this.selectedTileNodeId === nodeId;
-            plank.setFillStyle(isSelected ? 0xf7d774 : 0xa1887f);
-            plank.setStrokeStyle(
-                isSelected ? 4 : 2,
-                isSelected ? 0xfff59d : 0x5d4037,
-            );
+            // Tint the image slightly when selected and thicken the border
+            image.clearTint();
+            border.setStrokeStyle(isSelected ? 4 : 2, isSelected ? 0xfff59d : 0x5d4037);
+            if (isSelected) {
+                image.setTint(0xfff59d);
+            }
         }
     }
 }
