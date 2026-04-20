@@ -38,7 +38,7 @@ export class BridgeDragLevel extends Scene {
         this.input.on(
             "drag",
             (
-                pointer: Phaser.Input.Pointer,
+                _pointer: Phaser.Input.Pointer,
                 gameObject: Phaser.GameObjects.Image,
                 dragX: number,
                 dragY: number,
