@@ -391,7 +391,7 @@ export class Level1 extends Scene {
         }
         this.updateScoreboardText();
         if (this.correctCount - this.incorrectCount >= 5) {
-            this.scene.start("GameOver");
+            this.scene.start("Level2");
             return;
         }
         this.startNewRound();
@@ -482,6 +482,6 @@ export class Level1 extends Scene {
     update() {}
 
     changeScene() {
-        this.scene.start("GameOver");
+        this.scene.start("Level2");
     }
 }
