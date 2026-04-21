@@ -24,10 +24,7 @@ type RoundTask = {
 };
 
 function normalizeStatement(raw: string): string {
-    return raw
-        .replaceAll(/\s+/g, "")
-        .replaceAll(/;+$/g, "")
-        .toLowerCase();
+    return raw.replaceAll(/\s+/g, "").replaceAll(/;+$/g, "").toLowerCase();
 }
 
 function cloneSinglyModel(model: LinkedListModel): LinkedListModel {
@@ -39,12 +36,15 @@ function cloneSinglyModel(model: LinkedListModel): LinkedListModel {
     };
 }
 
-function applySkipNext(model: LinkedListModel, currId: NodeId): LinkedListModel {
-    const nextId = model.nodes[currId]?.next ?? null;
+function applySkipNext(
+    model: LinkedListModel,
+    currId: NodeId,
+): LinkedListModel {
+    const nextId = model.nodes[currId].next ?? null;
     if (nextId === null) {
         return model;
     }
-    const nextNext = model.nodes[nextId]?.next ?? null;
+    const nextNext = model.nodes[nextId].next ?? null;
     const nextModel = cloneSinglyModel(model);
     nextModel.nodes[currId] = { ...nextModel.nodes[currId], next: nextNext };
     return nextModel;
@@ -173,7 +173,8 @@ export class Level3 extends Scene {
         // Fallback (should be rare)
         const model = generateRandomSinglyChain(5);
         const chain = getForwardChainNodeIds(model);
-        const currId = chain[1] ?? (model.headId ?? "");
+        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+        const currId = chain[1] ?? model.headId ?? "";
         return {
             type: "point_next_to_head",
             model,
@@ -219,7 +220,10 @@ export class Level3 extends Scene {
     }
 
     private refreshInputText(): void {
-        const caret = this.acceptingInput && Math.floor(this.time.now / 400) % 2 === 0 ? "|" : " ";
+        const caret =
+            this.acceptingInput && Math.floor(this.time.now / 400) % 2 === 0 ?
+                "|"
+            :   " ";
         const shown = this.typedBuffer.length === 0 ? "" : this.typedBuffer;
         this.inputText.setText(`${shown}${caret}`);
     }
@@ -242,13 +246,14 @@ export class Level3 extends Scene {
         const task = this.currentTask;
         if (!task) return null;
         if (!this.isTypedAnswerCorrect()) return null;
-        if (task.type === "skip_next") return applySkipNext(task.model, task.currId);
+        if (task.type === "skip_next")
+            return applySkipNext(task.model, task.currId);
         if (task.type === "point_next_to_head")
             return applyPointNextToHead(task.model, task.currId);
         if (task.type === "delete_head") {
             const head = task.model.headId;
             if (head === null) return task.model;
-            const nextHead = task.model.nodes[head]?.next ?? null;
+            const nextHead = task.model.nodes[head].next ?? null;
             return { ...task.model, headId: nextHead };
         }
         // cut_after_curr
@@ -270,7 +275,9 @@ export class Level3 extends Scene {
         } else {
             this.incorrectCount += 1;
             const answer =
-                task?.expectedStatements?.[0] ? `Correct answer: ${task.expectedStatements[0]}` : "";
+                task?.expectedStatements[0] ?
+                    `Correct answer: ${task.expectedStatements[0]}`
+                :   "";
             this.feedbackText.setText(
                 answer ? `Not quite.\n${answer}` : "Not quite.",
             );
@@ -312,7 +319,10 @@ export class Level3 extends Scene {
     private startNewRound(): void {
         const task = this.createRoundTask();
         this.currentTask = task;
-        this.currentNodeLabels = this.buildDisplayLabels(task.model, task.currId);
+        this.currentNodeLabels = this.buildDisplayLabels(
+            task.model,
+            task.currId,
+        );
         this.hintText.setText(task.promptLine);
         this.clearTyped();
         this.applyModelAndRedraw(task.model);
@@ -453,4 +463,3 @@ export class Level3 extends Scene {
         this.refreshInputText();
     }
 }
-
