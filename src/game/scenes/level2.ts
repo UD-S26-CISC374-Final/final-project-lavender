@@ -272,10 +272,7 @@ export class Level2 extends Scene {
         this.bridgeView.clearSelection();
         this.refreshStructureButtons();
 
-        if (
-            this.player &&
-            this.currentTask.type !== "structure_identify"
-        ) {
+        if (this.player && this.currentTask.type !== "structure_identify") {
             this.player.setPosition(240, this.bridgePlayerY);
             this.player.setVelocity(0, 0);
         }

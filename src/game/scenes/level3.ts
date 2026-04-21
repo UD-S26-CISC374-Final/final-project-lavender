@@ -40,11 +40,11 @@ function applySkipNext(
     model: LinkedListModel,
     currId: NodeId,
 ): LinkedListModel {
-    const nextId = model.nodes[currId].next ?? null;
+    const nextId = model.nodes[currId].next;
     if (nextId === null) {
         return model;
     }
-    const nextNext = model.nodes[nextId].next ?? null;
+    const nextNext = model.nodes[nextId].next;
     const nextModel = cloneSinglyModel(model);
     nextModel.nodes[currId] = { ...nextModel.nodes[currId], next: nextNext };
     return nextModel;
@@ -173,8 +173,7 @@ export class Level3 extends Scene {
         // Fallback (should be rare)
         const model = generateRandomSinglyChain(5);
         const chain = getForwardChainNodeIds(model);
-        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-        const currId = chain[1] ?? model.headId ?? "";
+        const currId = chain[1];
         return {
             type: "point_next_to_head",
             model,
@@ -253,7 +252,7 @@ export class Level3 extends Scene {
         if (task.type === "delete_head") {
             const head = task.model.headId;
             if (head === null) return task.model;
-            const nextHead = task.model.nodes[head].next ?? null;
+            const nextHead = task.model.nodes[head].next;
             return { ...task.model, headId: nextHead };
         }
         // cut_after_curr
