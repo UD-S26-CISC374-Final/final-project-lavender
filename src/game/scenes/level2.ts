@@ -55,6 +55,9 @@ export class Level2 extends Scene {
     private selectedStructureKind: StructureKind | null = null;
     private correctCount = 0;
     private incorrectCount = 0;
+    private player?: Phaser.Physics.Arcade.Sprite;
+    private cursors?: Phaser.Types.Input.Keyboard.CursorKeys;
+    private readonly bridgePlayerY = 365;
 
     constructor() {
         super("Level2");
@@ -88,15 +91,15 @@ export class Level2 extends Scene {
             const task = generateStructureIdentifyTask();
             const prevHint =
                 task.expectedKind === "doubly" ?
-                    "Yellow backlinks under each plank mark .prev connections."
-                :   "No backlinks appear — only .next connections.";
+                    "Yellow backlinks under each plank mark ->prev connections."
+                :   "No backlinks appear — only ->next connections.";
             return {
                 model: task.model,
                 type: "structure_identify",
                 expectedKind: task.expectedKind,
                 questionLine:
                     "Is this bridge a singly or doubly linked list? Choose Singly or Doubly, then press Submit.",
-                codeHintLine: `// ${prevHint} Doubly lists have both .next and .prev; singly lists have only .next.`,
+                codeHintLine: `// ${prevHint} Doubly lists have both ->next and ->prev; singly lists have only ->next.`,
             };
         }
         if (roll === 1) {
@@ -106,8 +109,8 @@ export class Level2 extends Scene {
                 type: "delete_by_value_click",
                 answerNodeId: task.answerNodeId,
                 deleteValue: task.targetValue,
-                questionLine: `Click the tile with value ${task.targetValue} that must be removed, then press Submit.`,
-                codeHintLine: `// To delete node with value ${task.targetValue}: prev.next = node.next;`,
+                questionLine: `Move Alex onto the tile with value ${task.targetValue} that must be removed, then press Submit.`,
+                codeHintLine: `// To delete node with value ${task.targetValue}: prev->next = node->next;`,
             };
         }
         const task = generateInsertAfterTask();
@@ -116,8 +119,8 @@ export class Level2 extends Scene {
             type: "insert_after_click",
             answerNodeId: task.answerNodeId,
             insertValue: task.insertValue,
-            questionLine: `A new tile with value ${task.insertValue} must be inserted in sorted order. Click the tile it should come AFTER, then press Submit.`,
-            codeHintLine: `// To insert value ${task.insertValue}: newNode.next = node.next; node.next = newNode;`,
+            questionLine: `A new tile with value ${task.insertValue} must be inserted in sorted order. Move Alex onto the tile it should come AFTER, then press Submit.`,
+            codeHintLine: `// To insert value ${task.insertValue}: newNode->next = node->next; node->next = newNode;`,
         };
     }
 
@@ -125,6 +128,7 @@ export class Level2 extends Scene {
         if (this.currentTask?.type === "structure_identify") {
             return;
         }
+        // Click-to-select is disabled for keyboard questions, but keep this for safety.
         this.selectedNodeId = nodeId;
     };
 
@@ -177,8 +181,8 @@ export class Level2 extends Scene {
             task.type === "structure_identify" ?
                 "Choose Singly or Doubly using the buttons, then press Submit."
             : task.type === "delete_by_value_click" ?
-                "Click the tile to select it, then press Submit to delete."
-            :   "Click the tile the new value should come AFTER, then press Submit.";
+                "Use arrow keys to move Alex onto the tile, then press Submit to delete."
+            :   "Use arrow keys to move Alex onto the tile, then press Submit.";
         EventBus.emit(
             BRIDGE_DEMO_PANEL_EVENT,
             buildBridgeDemoPanelPayload(model, [], task.answerNodeId, {
@@ -226,7 +230,7 @@ export class Level2 extends Scene {
         }
         this.updateScoreboardText();
         if (this.correctCount - this.incorrectCount >= 5) {
-            this.scene.start("GameOver");
+            this.scene.start("Level3");
             return;
         }
         this.startNewRound();
@@ -267,6 +271,14 @@ export class Level2 extends Scene {
         this.applyModelAndRedraw(task.model);
         this.bridgeView.clearSelection();
         this.refreshStructureButtons();
+
+        if (
+            this.player &&
+            this.currentTask.type !== "structure_identify"
+        ) {
+            this.player.setPosition(240, this.bridgePlayerY);
+            this.player.setVelocity(0, 0);
+        }
     }
 
     create() {
@@ -279,6 +291,35 @@ export class Level2 extends Scene {
         this.background = this.add.image(512, 384, "background");
         this.background.setAlpha(0.25);
 
+        this.player = this.physics.add.sprite(240, this.bridgePlayerY, "alex");
+        this.player.setCollideWorldBounds(true);
+        (this.player.body as Phaser.Physics.Arcade.Body).setAllowGravity(false);
+
+        this.anims.create({
+            key: "left",
+            frames: this.anims.generateFrameNumbers("alex", {
+                start: 1,
+                end: 4,
+            }),
+            frameRate: 10,
+            repeat: -1,
+        });
+        this.anims.create({
+            key: "turn",
+            frames: [{ key: "alex", frame: 5 }],
+            frameRate: 20,
+        });
+        this.anims.create({
+            key: "right",
+            frames: this.anims.generateFrameNumbers("alex", {
+                start: 6,
+                end: 9,
+            }),
+            frameRate: 10,
+            repeat: -1,
+        });
+        this.cursors = this.input.keyboard?.createCursorKeys();
+
         this.hintText = this.add
             .text(24, 16, "", {
                 fontFamily: "Arial",
@@ -289,7 +330,7 @@ export class Level2 extends Scene {
             })
             .setDepth(10);
 
-        this.add
+        /*this.add
             .text(this.scale.width / 2, 18, "Level 2", {
                 fontFamily: "Arial Black",
                 fontSize: 22,
@@ -297,7 +338,7 @@ export class Level2 extends Scene {
             })
             .setOrigin(0.5, 0)
             .setDepth(20);
-
+*/
         this.scoreboardText = this.add
             .text(this.scale.width - 24, 18, "", {
                 fontFamily: "Arial Black",
@@ -378,9 +419,35 @@ export class Level2 extends Scene {
         });
     }
 
-    update() {}
+    update() {
+        const task = this.currentTask;
+        if (task && task.type !== "structure_identify") {
+            const p = this.player;
+            if (p) {
+                const nodeId = this.bridgeView.getNodeIdAtWorldPoint(p.x, p.y);
+                this.selectedNodeId = nodeId;
+                this.bridgeView.setSelectedNodeId(nodeId);
+            }
+
+            if (this.cursors?.left.isDown) {
+                this.player?.setVelocityX(-160);
+                this.player?.anims.play("left", true);
+            } else if (this.cursors?.right.isDown) {
+                this.player?.setVelocityX(160);
+                this.player?.anims.play("right", true);
+            } else {
+                this.player?.setVelocityX(0);
+                this.player?.anims.play("turn");
+            }
+        } else {
+            this.player?.setVelocityX(0);
+            this.player?.anims.play("turn");
+            this.bridgeView.setSelectedNodeId(null);
+            this.selectedNodeId = null;
+        }
+    }
 
     changeScene() {
-        this.scene.start("GameOver");
+        this.scene.start("Level3");
     }
 }

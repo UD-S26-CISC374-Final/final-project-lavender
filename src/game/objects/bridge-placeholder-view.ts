@@ -123,8 +123,7 @@ export class BridgePlaceholderView {
     };
 
     private readonly onTilePointerDown = (nodeId: NodeId) => {
-        this.selectedTileNodeId = nodeId;
-        this.refreshSelectionVisuals();
+        this.setSelectedNodeId(nodeId);
         if (this.onTileSelected) {
             this.onTileSelected(nodeId);
         }
@@ -315,21 +314,6 @@ export class BridgePlaceholderView {
             root.add(ropeEnd);
         }
 
-        const hikerX = 130;
-        const hikerY = this.bridgeWorldY - 95;
-        const hiker = this.scene.add
-            .circle(hikerX, hikerY, 18, 0x42a5f5)
-            .setStrokeStyle(3, 0x0d47a1);
-        const hikerTag = this.scene.add
-            .text(hikerX, hikerY - 32, "Hiker", {
-                fontFamily: "Arial",
-                fontSize: 14,
-                color: "#e3f2fd",
-            })
-            .setOrigin(0.5);
-        root.add(hiker);
-        root.add(hikerTag);
-
         this.refreshSelectionVisuals();
 
         if (
@@ -356,12 +340,28 @@ export class BridgePlaceholderView {
     }
 
     clearSelection(): void {
-        this.selectedTileNodeId = null;
-        this.refreshSelectionVisuals();
+        this.setSelectedNodeId(null);
     }
 
     getSelectedNodeId(): NodeId | null {
         return this.selectedTileNodeId;
+    }
+
+    /** Programmatically set which tile is "selected" (for keyboard-controlled levels). */
+    setSelectedNodeId(nodeId: NodeId | null): void {
+        this.selectedTileNodeId = nodeId;
+        this.refreshSelectionVisuals();
+    }
+
+    /** Returns the node id of the tile under the given point, if any. */
+    getNodeIdAtWorldPoint(x: number, y: number): NodeId | null {
+        for (const tile of this.tileContainers) {
+            const bounds = tile.getBounds();
+            if (bounds.contains(x, y)) {
+                return String(tile.getData("nodeId"));
+            }
+        }
+        return null;
     }
 
     private refreshSelectionVisuals(): void {

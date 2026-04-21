@@ -31,6 +31,7 @@ export class Preloader extends Scene {
         this.load.image("phaser-logo", "phaser-logo.png");
         // Tile image for bridge planks (add a pixel-art tile.png into public/assets)
         this.load.image("tile", "bridge-tile.png");
+        this.load.spritesheet("alex", "Alex.png", { frameWidth: 128, frameHeight: 128 });
     }
 
     create() {

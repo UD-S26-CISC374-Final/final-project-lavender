@@ -55,6 +55,9 @@ export class Level1 extends Scene {
     private selectedNodeId: NodeId | null = null;
     private correctCount = 0;
     private incorrectCount = 0;
+    private player?: Phaser.Physics.Arcade.Sprite;
+    private cursors?: Phaser.Types.Input.Keyboard.CursorKeys;
+    private readonly bridgePlayerY = 365;
 
     constructor() {
         super("Level1");
@@ -64,13 +67,13 @@ export class Level1 extends Scene {
     private buildTraversalClickQuestion(): RoundTask {
         const chainLength = Phaser.Math.Between(3, 6);
         const task = generateSinglyChainWithBoundedNextHops(chainLength);
-        const hops = task.steps.map((step) => `.${step}`).join("");
+        const hops = task.steps.map((step) => `->${step}`).join("");
         return {
             model: task.model,
             steps: task.steps,
             answerNodeId: task.answerNodeId,
             type: "traversal_click",
-            questionLine: `Click the tile that the hiker will land on if he travels head${hops}`,
+            questionLine: `Move Alex to the tile he will land on if he travels head${hops}, then press Submit.`,
             codeHintLine: `let node = head${hops};`,
         };
     }
@@ -128,13 +131,13 @@ export class Level1 extends Scene {
             task.startNodeId,
             labels,
         );
-        const path = task.steps.map((step) => `.${step}`).join("");
+        const path = task.steps.map((step) => `->${step}`).join("");
         return {
             model: task.model,
             steps: task.steps,
             answerNodeId: task.answerNodeId,
             type: "indexed_prev_click",
-            questionLine: `Click the node at ${startLabel}${path}`,
+            questionLine: `Move Alex to the node at ${startLabel}${path}, then press Submit.`,
             codeHintLine: `let node = ${startLabel}${path};`,
             traversalStartNodeId: task.startNodeId,
             traversalStartLabel: startLabel,
@@ -187,7 +190,7 @@ export class Level1 extends Scene {
         }
         let line = "let node = head";
         for (let i = 0; i < index; i++) {
-            line += ".next";
+            line += "->next";
         }
         return `${line};`;
     }
@@ -222,7 +225,7 @@ export class Level1 extends Scene {
         if (delta <= 0) {
             return `let ${movedLabel} = ${movedLabel}; // moved ${Math.abs(delta)} slot(s) left`;
         }
-        const hops = ".next".repeat(delta);
+        const hops = "->next".repeat(delta);
         return `let ${movedLabel} = ${movedLabel}${hops};`;
     }
 
@@ -295,7 +298,7 @@ export class Level1 extends Scene {
         const dragHintLine =
             this.currentQuestionType === "drag_largest_to_last" ?
                 "Drag tiles to reorder the linked list, then press Submit."
-            :   "Click a tile to select your answer, then press Submit.";
+            :   "Use arrow keys to move Alex onto a tile, then press Submit.";
         const dragOverrides =
             this.currentQuestionType === "drag_largest_to_last" ?
                 this.buildDragCompilerStatus(nextModel, this.taskAnswerNodeId)
@@ -333,6 +336,7 @@ export class Level1 extends Scene {
     }
 
     private readonly onTileSelected = (nodeId: NodeId) => {
+        // Click-to-select is disabled for keyboard questions, but keep this for safety.
         this.selectedNodeId = nodeId;
     };
 
@@ -365,10 +369,8 @@ export class Level1 extends Scene {
             this.currentQuestionType === "traversal_click" ||
             this.currentQuestionType === "indexed_prev_click"
         ) {
-            return (
-                this.selectedNodeId !== null &&
-                this.selectedNodeId === this.taskAnswerNodeId
-            );
+            const current = this.selectedNodeId;
+            return current !== null && current === this.taskAnswerNodeId;
         }
         const chain = getForwardChainNodeIds(this.currentModel);
         if (chain.length === 0) {
@@ -413,6 +415,16 @@ export class Level1 extends Scene {
         this.hintText.setText(task.questionLine);
         this.applyModelAndRedraw(task.model);
         this.bridgeView.clearSelection();
+
+        // Reset Alex onto the bridge start for keyboard questions.
+        if (
+            this.player &&
+            (this.currentQuestionType === "traversal_click" ||
+                this.currentQuestionType === "indexed_prev_click")
+        ) {
+            this.player.setPosition(240, this.bridgePlayerY);
+            this.player.setVelocity(0, 0);
+        }
     }
 
     create() {
@@ -424,6 +436,38 @@ export class Level1 extends Scene {
 
         this.background = this.add.image(512, 384, "background");
         this.background.setAlpha(0.25);
+
+        this.player = this.physics.add.sprite(240, this.bridgePlayerY, "alex");
+        this.player.setCollideWorldBounds(true);
+        (this.player.body as Phaser.Physics.Arcade.Body).setAllowGravity(false);
+
+        this.anims.create({
+            key: "left",
+            frames: this.anims.generateFrameNumbers("alex", {
+                start: 1,
+                end: 4,
+            }),
+            frameRate: 10,
+            repeat: -1,
+        });
+
+        this.anims.create({
+            key: "turn",
+            frames: [{ key: "alex", frame: 5 }],
+            frameRate: 20,
+        });
+
+        this.anims.create({
+            key: "right",
+            frames: this.anims.generateFrameNumbers("alex", {
+                start: 6,
+                end: 9,
+            }),
+            frameRate: 10,
+            repeat: -1,
+        });
+
+        this.cursors = this.input.keyboard?.createCursorKeys();
 
         this.hintText = this.add
             .text(24, 16, "", {
@@ -479,7 +523,31 @@ export class Level1 extends Scene {
         });
     }
 
-    update() {}
+    update() {
+        // For keyboard questions, derive the "selected" node from where Alex is standing.
+        if (
+            this.currentQuestionType === "traversal_click" ||
+            this.currentQuestionType === "indexed_prev_click"
+        ) {
+            const p = this.player;
+            if (p) {
+                const nodeId = this.bridgeView.getNodeIdAtWorldPoint(p.x, p.y);
+                this.selectedNodeId = nodeId;
+                this.bridgeView.setSelectedNodeId(nodeId);
+            }
+        }
+
+        if (this.cursors?.left.isDown) {
+            this.player?.setVelocityX(-160);
+            this.player?.anims.play("left", true);
+        } else if (this.cursors?.right.isDown) {
+            this.player?.setVelocityX(160);
+            this.player?.anims.play("right", true);
+        } else {
+            this.player?.setVelocityX(0);
+            this.player?.anims.play("turn");
+        }
+    }
 
     changeScene() {
         this.scene.start("Level2");

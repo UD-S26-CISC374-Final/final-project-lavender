@@ -13,7 +13,7 @@ export function buildTraversalQuestionLine(
     if (steps.length === 0) {
         return "Starting at head, follow no hops. Which node id do you reach?";
     }
-    const path = steps.map((s) => `.${s}`).join("");
+    const path = steps.map((s) => `->${s}`).join("");
     return `Starting at head, follow ${path}. Which node id do you reach?`;
 }
 
@@ -91,7 +91,7 @@ function formatStructureIssues(model: LinkedListModel): {
         }
     }
     lines.push(
-        `Every tile reachable from head (via .next): ${strict.ok ? "OK" : `${strict.issues.length} issue(s)`}`,
+        `Every tile reachable from head (via ->next): ${strict.ok ? "OK" : `${strict.issues.length} issue(s)`}`,
     );
     if (!strict.ok) {
         for (const issue of strict.issues) {
@@ -157,7 +157,7 @@ export function buildBridgeDemoPanelPayload(
         traversalStartNodeId !== undefined ?
             traverseFromNode(model, traversalStartNodeId, steps)
         :   traverseFromHead(model, steps);
-    const defaultTraversalDescription = `Traversal: ${startLabel}${steps.map((s) => `.${s}`).join("")}`;
+    const defaultTraversalDescription = `Traversal: ${startLabel}${steps.map((s) => `->${s}`).join("")}`;
 
     let defaultTraversalOutcome: string;
     if (tr.ok) {
