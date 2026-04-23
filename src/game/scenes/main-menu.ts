@@ -7,6 +7,7 @@ export class MainMenu extends Scene implements ChangeableScene {
     background: GameObjects.Image;
     logo: GameObjects.Image;
     title: GameObjects.Text;
+    private startButton!: GameObjects.Text;
     logoTween: Phaser.Tweens.Tween | null;
 
     constructor() {
@@ -30,7 +31,27 @@ export class MainMenu extends Scene implements ChangeableScene {
             .setOrigin(0.5)
             .setDepth(100);
 
+        this.startButton = this.add
+            .text(512, 560, "Start", {
+                fontFamily: "Arial Black",
+                fontSize: 30,
+                color: "#1b2e1b",
+                backgroundColor: "#c8e6c9",
+                padding: { left: 22, right: 22, top: 12, bottom: 12 },
+            })
+            .setOrigin(0.5)
+            .setDepth(100)
+            .setInteractive({ useHandCursor: true });
+        this.startButton.on("pointerdown", () => this.changeScene());
+
+        this.input.keyboard?.on("keydown-ENTER", () => this.changeScene());
+
         EventBus.emit("current-scene-ready", this);
+
+        this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+            this.startButton?.removeAllListeners();
+            this.input.keyboard?.off("keydown-ENTER");
+        });
     }
 
     changeScene() {

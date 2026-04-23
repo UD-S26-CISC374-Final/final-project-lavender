@@ -80,6 +80,7 @@ export class Level3 extends Scene {
     private incorrectCount = 0;
     private acceptingInput = true;
     private readonly bridgePlayerY = 365;
+    private transitioning = false;
 
     constructor() {
         super("Level3");
@@ -265,6 +266,9 @@ export class Level3 extends Scene {
     }
 
     private submitCurrentAnswer(): void {
+        if (this.transitioning) {
+            return;
+        }
         const task = this.currentTask;
         const correct = this.isTypedAnswerCorrect();
         if (correct) {
@@ -284,8 +288,8 @@ export class Level3 extends Scene {
         }
         this.updateScoreboardText();
 
-        if (this.correctCount - this.incorrectCount >= 5) {
-            this.scene.start("GameOver");
+        if (this.correctCount >= 10) {
+            this.autoWalkToRightAndStart("GameOver");
             return;
         }
 
@@ -315,6 +319,34 @@ export class Level3 extends Scene {
         this.startNewRound();
     }
 
+    private autoWalkToRightAndStart(nextSceneKey: string): void {
+        const p = this.player;
+        if (!p) {
+            this.scene.start(nextSceneKey);
+            return;
+        }
+        this.transitioning = true;
+        this.acceptingInput = false;
+        this.submitButton.disableInteractive();
+
+        const targetX = this.scale.width - 40;
+        const distance = Math.max(0, targetX - p.x);
+        const speedPxPerSec = 260;
+        const durationMs = Math.max(250, (distance / speedPxPerSec) * 1000);
+
+        p.anims.play("right", true);
+        this.tweens.add({
+            targets: p,
+            x: targetX,
+            duration: durationMs,
+            ease: "Linear",
+            onComplete: () => {
+                p.anims.play("turn");
+                this.scene.start(nextSceneKey);
+            },
+        });
+    }
+
     private startNewRound(): void {
         const task = this.createRoundTask();
         this.currentTask = task;
@@ -331,6 +363,7 @@ export class Level3 extends Scene {
     create() {
         this.correctCount = 0;
         this.incorrectCount = 0;
+        this.transitioning = false;
 
         this.camera = this.cameras.main;
         this.camera.setBackgroundColor(0x231942);
@@ -348,9 +381,27 @@ export class Level3 extends Scene {
         this.player.setDepth(35);
 
         this.anims.create({
+            key: "left",
+            frames: this.anims.generateFrameNumbers("alex", {
+                start: 1,
+                end: 4,
+            }),
+            frameRate: 10,
+            repeat: -1,
+        });
+        this.anims.create({
             key: "turn",
             frames: [{ key: "alex", frame: 5 }],
             frameRate: 20,
+        });
+        this.anims.create({
+            key: "right",
+            frames: this.anims.generateFrameNumbers("alex", {
+                start: 6,
+                end: 9,
+            }),
+            frameRate: 10,
+            repeat: -1,
         });
         this.player.anims.play("turn");
 
@@ -465,5 +516,9 @@ export class Level3 extends Scene {
 
     update() {
         this.refreshInputText();
+        
+    }
+    changeScene() {
+        this.scene.start("GameOver");
     }
 }

@@ -58,6 +58,7 @@ export class Level2 extends Scene {
     private player?: Phaser.Physics.Arcade.Sprite;
     private cursors?: Phaser.Types.Input.Keyboard.CursorKeys;
     private readonly bridgePlayerY = 365;
+    private transitioning = false;
 
     constructor() {
         super("Level2");
@@ -218,6 +219,9 @@ export class Level2 extends Scene {
     }
 
     private submitCurrentAnswer(): void {
+        if (this.transitioning) {
+            return;
+        }
         const correct = this.isSubmissionCorrect();
         if (correct) {
             this.correctCount += 1;
@@ -229,11 +233,41 @@ export class Level2 extends Scene {
             this.feedbackText.setColor("#ff9e6c");
         }
         this.updateScoreboardText();
-        if (this.correctCount - this.incorrectCount >= 5) {
-            this.scene.start("Level3");
+        if (this.correctCount >= 10) {
+            this.autoWalkToRightAndStart("Level3");
             return;
         }
         this.startNewRound();
+    }
+
+    private autoWalkToRightAndStart(nextSceneKey: string): void {
+        const p = this.player;
+        if (!p) {
+            this.scene.start(nextSceneKey);
+            return;
+        }
+        this.transitioning = true;
+        this.submitButton.disableInteractive();
+        this.singlyButton.disableInteractive();
+        this.doublyButton.disableInteractive();
+
+        const targetX = this.scale.width - 40;
+        const distance = Math.max(0, targetX - p.x);
+        const speedPxPerSec = 260;
+        const durationMs = Math.max(250, (distance / speedPxPerSec) * 1000);
+
+        p.setVelocity(0, 0);
+        p.anims.play("right", true);
+        this.tweens.add({
+            targets: p,
+            x: targetX,
+            duration: durationMs,
+            ease: "Linear",
+            onComplete: () => {
+                p.anims.play("turn");
+                this.scene.start(nextSceneKey);
+            },
+        });
     }
 
     private setStructureSelection(kind: StructureKind): void {
@@ -281,6 +315,7 @@ export class Level2 extends Scene {
     create() {
         this.correctCount = 0;
         this.incorrectCount = 0;
+        this.transitioning = false;
 
         this.camera = this.cameras.main;
         this.camera.setBackgroundColor(0x152238);
@@ -422,6 +457,13 @@ export class Level2 extends Scene {
     }
 
     update() {
+        if (this.transitioning) {
+            const p = this.player;
+            if (p && p.anims.currentAnim?.key !== "right") {
+                p.anims.play("right", true);
+            }
+            return;
+        }
         const task = this.currentTask;
         if (task && task.type !== "structure_identify") {
             const p = this.player;

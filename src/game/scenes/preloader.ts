@@ -33,6 +33,7 @@ export class Preloader extends Scene {
         this.load.image("tile", "bridge-tile.png");
         this.load.image("cliff", "cliff.png");
         this.load.spritesheet("alex", "Alex.png", { frameWidth: 128, frameHeight: 128 });
+        this.load.spritesheet("bird-speaking", "bird-speaking-Sheet.png", { frameWidth: 320, frameHeight: 180 });
     }
 
     create() {

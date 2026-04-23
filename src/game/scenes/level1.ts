@@ -58,6 +58,9 @@ export class Level1 extends Scene {
     private player?: Phaser.Physics.Arcade.Sprite;
     private cursors?: Phaser.Types.Input.Keyboard.CursorKeys;
     private readonly bridgePlayerY = 365;
+    private transitioning = false;
+    private introActive = false;
+    private introLayer?: Phaser.GameObjects.Container;
 
     constructor() {
         super("Level1");
@@ -381,6 +384,9 @@ export class Level1 extends Scene {
     }
 
     private submitCurrentAnswer(): void {
+        if (this.transitioning) {
+            return;
+        }
         const isCorrect = this.isSubmissionCorrect();
         if (isCorrect) {
             this.correctCount += 1;
@@ -392,11 +398,39 @@ export class Level1 extends Scene {
             this.feedbackText.setColor("#ff9e6c");
         }
         this.updateScoreboardText();
-        if (this.correctCount - this.incorrectCount >= 5) {
-            this.scene.start("Level2");
+        if (this.correctCount >= 10) {
+            this.autoWalkToRightAndStart("Level2");
             return;
         }
         this.startNewRound();
+    }
+
+    private autoWalkToRightAndStart(nextSceneKey: string): void {
+        const p = this.player;
+        if (!p) {
+            this.scene.start(nextSceneKey);
+            return;
+        }
+        this.transitioning = true;
+        this.submitButton.disableInteractive();
+
+        const targetX = this.scale.width - 40;
+        const distance = Math.max(0, targetX - p.x);
+        const speedPxPerSec = 260;
+        const durationMs = Math.max(250, (distance / speedPxPerSec) * 1000);
+
+        p.setVelocity(0, 0);
+        p.anims.play("right", true);
+        this.tweens.add({
+            targets: p,
+            x: targetX,
+            duration: durationMs,
+            ease: "Linear",
+            onComplete: () => {
+                p.anims.play("turn");
+                this.scene.start(nextSceneKey);
+            },
+        });
     }
 
     private startNewRound(): void {
@@ -430,6 +464,8 @@ export class Level1 extends Scene {
     create() {
         this.correctCount = 0;
         this.incorrectCount = 0;
+        this.transitioning = false;
+        this.introActive = true;
 
         this.camera = this.cameras.main;
         this.camera.setBackgroundColor(0x1b2e1b);
@@ -473,6 +509,20 @@ export class Level1 extends Scene {
         });
 
         this.cursors = this.input.keyboard?.createCursorKeys();
+
+        // Bird speaking animation (used in the Level 1 intro popup).
+        const birdFrames = this.textures.get("bird-speaking")?.frameTotal ?? 0;
+        if (!this.anims.exists("bird-speaking-loop") && birdFrames > 1) {
+            this.anims.create({
+                key: "bird-speaking-loop",
+                frames: this.anims.generateFrameNumbers("bird-speaking", {
+                    start: 0,
+                    end: Math.max(0, birdFrames - 1),
+                }),
+                frameRate: 5,
+                repeat: -1,
+            });
+        }
 
         this.hintText = this.add
             .text(24, 16, "", {
@@ -518,17 +568,180 @@ export class Level1 extends Scene {
         });
 
         this.updateScoreboardText();
-        this.startNewRound();
+        this.showIntroPopup();
 
         EventBus.emit("current-scene-ready", this);
 
         this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
             this.bridgeView.destroy();
             this.submitButton.removeAllListeners();
+            this.introLayer?.destroy(true);
         });
     }
 
+    private showIntroPopup(): void {
+        // Lock gameplay UI until player chooses.
+        this.submitButton.disableInteractive();
+        this.feedbackText.setText("");
+        this.hintText.setText("");
+
+        const overlay = this.add.rectangle(
+            this.scale.width / 2,
+            this.scale.height / 2,
+            this.scale.width,
+            this.scale.height,
+            0x000000,
+            0.45,
+        );
+        overlay.setDepth(1000);
+
+        const panelW = Math.min(760, this.scale.width - 80);
+        const panelH = 380;
+        const panel = this.add.rectangle(
+            this.scale.width / 2,
+            this.scale.height / 2,
+            panelW,
+            panelH,
+            0x0b1a0b,
+            0.78,
+        );
+        panel.setStrokeStyle(2, 0xfff59d, 0.65);
+        panel.setDepth(1001);
+
+        const bird = this.add
+            .sprite(this.scale.width / 2, this.scale.height / 2 - 120, "bird-speaking")
+            .setDepth(1002);
+        bird.setScale(Math.min(1, panelW / 820));
+        if (this.anims.exists("bird-speaking-loop")) {
+            bird.anims.play("bird-speaking-loop");
+        }
+
+        const prompt = this.add
+            .text(
+                this.scale.width / 2,
+                this.scale.height / 2 - 20,
+                "Would you like to see the instructions?",
+                {
+                    fontFamily: "Arial Black",
+                    fontSize: 24,
+                    color: "#fffde7",
+                    align: "center",
+                    wordWrap: { width: panelW - 80 },
+                },
+            )
+            .setOrigin(0.5)
+            .setDepth(1002);
+
+        const makeButton = (
+            x: number,
+            label: string,
+            onClick: () => void,
+        ): Phaser.GameObjects.Text => {
+            const btn = this.add
+                .text(x, this.scale.height / 2 + 110, label, {
+                    fontFamily: "Arial Black",
+                    fontSize: 22,
+                    color: "#1b2e1b",
+                    backgroundColor: "#c8e6c9",
+                    padding: { left: 18, right: 18, top: 10, bottom: 10 },
+                })
+                .setOrigin(0.5)
+                .setDepth(1002)
+                .setInteractive({ useHandCursor: true });
+            btn.on("pointerdown", () => onClick());
+            return btn;
+        };
+
+        const skipBtn = makeButton(this.scale.width / 2 - 120, "Skip", () => {
+            this.closeIntroPopupAndStart();
+        });
+        const instrBtn = makeButton(
+            this.scale.width / 2 + 140,
+            "Instructions",
+            () => {
+               
+                prompt.setText("Hey there! welcome to linked lunancy, where you're goal is to traverse the bridge by either clicking and dragging teh bridge tiles based on the given instructions at the top of the screen of screen, move Alex to the corect tile by using the arrow keys, or by typing the correct line to based on given instructions. After answering 10 correct questions, you will move onto the next level. Good luck and have fun!");
+                skipBtn.setVisible(false).disableInteractive();
+                instrBtn.setVisible(false).disableInteractive();
+
+                const instructionsText = this.add
+                    .text(
+                        this.scale.width / 2,
+                        this.scale.height / 2 + 40,
+                        "",
+                        {
+                            fontFamily: "Arial",
+                            fontSize: 18,
+                            color: "#fffde7",
+                            align: "left",
+                            wordWrap: { width: panelW - 100 },
+                            lineSpacing: 6,
+                        },
+                    )
+                    .setOrigin(0.5)
+                    .setDepth(1002);
+
+                let continueBtn: Phaser.GameObjects.Text | null = null;
+                continueBtn = makeButton(
+                    this.scale.width / 2,
+                    "Continue",
+                    () => {
+                        continueBtn?.destroy();
+                        continueBtn = null;
+                        instructionsText.destroy();
+                        this.closeIntroPopupAndStart();
+                    },
+                );
+                continueBtn.setY(this.scale.height / 2 + 140);
+            },
+        );
+
+        // Block clicks from reaching the scene underneath.
+        overlay.setInteractive(
+            new Phaser.Geom.Rectangle(
+                -this.scale.width / 2,
+                -this.scale.height / 2,
+                this.scale.width,
+                this.scale.height,
+            ),
+            Phaser.Geom.Rectangle.Contains,
+        );
+
+        this.introLayer = this.add.container(0, 0, [
+            overlay,
+            panel,
+            bird,
+            prompt,
+            skipBtn,
+            instrBtn,
+        ]);
+        this.introLayer.setDepth(1000);
+    }
+
+    private closeIntroPopupAndStart(): void {
+        this.introActive = false;
+        this.introLayer?.destroy(true);
+        this.introLayer = undefined;
+
+        // Re-enable gameplay UI and start the first round.
+        this.submitButton.setInteractive({ useHandCursor: true });
+        this.startNewRound();
+    }
+
     update() {
+        if (this.introActive) {
+            // Keep Alex idle behind the popup.
+            this.player?.setVelocityX(0);
+            this.player?.anims.play("turn");
+            return;
+        }
+        if (this.transitioning) {
+            const p = this.player;
+            if (p && p.anims.currentAnim?.key !== "right") {
+                p.anims.play("right", true);
+            }
+            return;
+        }
         // For keyboard questions, derive the "selected" node from where Alex is standing.
         if (
             this.currentQuestionType === "traversal_click" ||
