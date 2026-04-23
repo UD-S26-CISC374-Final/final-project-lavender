@@ -511,7 +511,8 @@ export class Level1 extends Scene {
         this.cursors = this.input.keyboard?.createCursorKeys();
 
         // Bird speaking animation (used in the Level 1 intro popup).
-        const birdFrames = this.textures.get("bird-speaking")?.frameTotal ?? 0;
+        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+        const birdFrames = this.textures.get("bird-speaking").frameTotal ?? 0;
         if (!this.anims.exists("bird-speaking-loop") && birdFrames > 1) {
             this.anims.create({
                 key: "bird-speaking-loop",
@@ -609,7 +610,11 @@ export class Level1 extends Scene {
         panel.setDepth(1001);
 
         const bird = this.add
-            .sprite(this.scale.width / 2, this.scale.height / 2 - 120, "bird-speaking")
+            .sprite(
+                this.scale.width / 2,
+                this.scale.height / 2 - 120,
+                "bird-speaking",
+            )
             .setDepth(1002);
         bird.setScale(Math.min(1, panelW / 820));
         if (this.anims.exists("bird-speaking-loop")) {
@@ -659,8 +664,9 @@ export class Level1 extends Scene {
             this.scale.width / 2 + 140,
             "Instructions",
             () => {
-               
-                prompt.setText("Hey there! welcome to linked lunancy, where you're goal is to traverse the bridge by either clicking and dragging teh bridge tiles based on the given instructions at the top of the screen of screen, move Alex to the corect tile by using the arrow keys, or by typing the correct line to based on given instructions. After answering 10 correct questions, you will move onto the next level. Good luck and have fun!");
+                prompt.setText(
+                    "Hey there! welcome to linked lunancy, where you're goal is to traverse the bridge by either clicking and dragging teh bridge tiles based on the given instructions at the top of the screen of screen, move Alex to the corect tile by using the arrow keys, or by typing the correct line to based on given instructions. After answering 10 correct questions, you will move onto the next level. Good luck and have fun!",
+                );
                 skipBtn.setVisible(false).disableInteractive();
                 instrBtn.setVisible(false).disableInteractive();
 
@@ -704,6 +710,7 @@ export class Level1 extends Scene {
                 this.scale.width,
                 this.scale.height,
             ),
+            // eslint-disable-next-line @typescript-eslint/unbound-method
             Phaser.Geom.Rectangle.Contains,
         );
 
@@ -752,7 +759,10 @@ export class Level1 extends Scene {
                 // Use Alex's "feet" instead of his sprite center so the probe point
                 // actually overlaps the plank bounds.
                 const footY = p.y + p.displayHeight * 0.5;
-                const nodeId = this.bridgeView.getNodeIdAtWorldPoint(p.x, footY);
+                const nodeId = this.bridgeView.getNodeIdAtWorldPoint(
+                    p.x,
+                    footY,
+                );
                 this.selectedNodeId = nodeId;
                 this.bridgeView.setSelectedNodeId(nodeId);
             }
