@@ -422,7 +422,7 @@ export class Level1 extends Scene {
             (this.currentQuestionType === "traversal_click" ||
                 this.currentQuestionType === "indexed_prev_click")
         ) {
-            this.player.setPosition(240, this.bridgePlayerY);
+            this.player.setPosition(100, this.bridgePlayerY + 47);
             this.player.setVelocity(0, 0);
         }
     }
@@ -437,9 +437,14 @@ export class Level1 extends Scene {
         this.background = this.add.image(512, 384, "background");
         this.background.setAlpha(0.25);
 
-        this.player = this.physics.add.sprite(240, this.bridgePlayerY, "alex");
+        this.player = this.physics.add.sprite(
+            100,
+            this.bridgePlayerY + 47,
+            "alex",
+        );
         this.player.setCollideWorldBounds(true);
         (this.player.body as Phaser.Physics.Arcade.Body).setAllowGravity(false);
+        this.player.setDepth(35);
 
         this.anims.create({
             key: "left",
@@ -531,17 +536,20 @@ export class Level1 extends Scene {
         ) {
             const p = this.player;
             if (p) {
-                const nodeId = this.bridgeView.getNodeIdAtWorldPoint(p.x, p.y);
+                // Use Alex's "feet" instead of his sprite center so the probe point
+                // actually overlaps the plank bounds.
+                const footY = p.y + p.displayHeight * 0.5;
+                const nodeId = this.bridgeView.getNodeIdAtWorldPoint(p.x, footY);
                 this.selectedNodeId = nodeId;
                 this.bridgeView.setSelectedNodeId(nodeId);
             }
         }
 
         if (this.cursors?.left.isDown) {
-            this.player?.setVelocityX(-160);
+            this.player?.setVelocityX(-260);
             this.player?.anims.play("left", true);
         } else if (this.cursors?.right.isDown) {
-            this.player?.setVelocityX(160);
+            this.player?.setVelocityX(260);
             this.player?.anims.play("right", true);
         } else {
             this.player?.setVelocityX(0);

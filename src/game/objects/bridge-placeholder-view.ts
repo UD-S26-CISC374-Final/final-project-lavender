@@ -7,7 +7,9 @@ import { rechainSinglyInOrder } from "../model/linked-list-model";
 
 const TILE_W = 88;
 const TILE_H = 52;
-const STEP_X = 108;
+const STEP_X = 108; //space between the tiles
+const CLIFF_H = 850;
+const CLIFF_W = 450;
 
 type ChainUpdated = (next: LinkedListModel) => void;
 type TileSelected = (nodeId: NodeId) => void;
@@ -26,8 +28,8 @@ export class BridgePlaceholderView {
     private lastModel: LinkedListModel | null = null;
     private onChainUpdated: ChainUpdated | null = null;
     private onTileSelected: TileSelected | null = null;
-    private bridgeWorldY = 430;
-    private layoutStartX = 240;
+    private bridgeWorldY: number = 430;
+    private layoutStartX: number = 0;
     private dragMinX = 160;
     private dragMaxX = 920;
     private dragListening = false;
@@ -188,7 +190,7 @@ export class BridgePlaceholderView {
         this.layer = root;
 
         const chain = getForwardChainNodeIds(model);
-        this.bridgeWorldY = 430;
+        this.bridgeWorldY = 485;
         const startX = 240;
         this.layoutStartX = startX;
         this.ropeGraphics = [];
@@ -198,12 +200,15 @@ export class BridgePlaceholderView {
         this.dragMaxX = Math.min(w - 120, Math.floor(w * 0.92));
 
         const leftBank = this.scene.add
-            .rectangle(95, this.bridgeWorldY, 110, 200, 0x4e342e)
-            .setStrokeStyle(3, 0x3e2723);
-        const rightBankX = startX + Math.max(chain.length, 1) * STEP_X + 120;
+            .image(30, 800, "cliff")
+            .setOrigin(0.5, 1)
+            .setDisplaySize(CLIFF_H, CLIFF_W);
+        const rightBankX = w;
         const rightBank = this.scene.add
-            .rectangle(rightBankX, this.bridgeWorldY, 110, 200, 0x4e342e)
-            .setStrokeStyle(3, 0x3e2723);
+            .image(rightBankX, 800, "cliff")
+            .setOrigin(0.5, 1)
+            .setDisplaySize(CLIFF_H, CLIFF_W)
+            .setFlipX(true);
         root.add(leftBank);
         root.add(rightBank);
 
@@ -225,7 +230,7 @@ export class BridgePlaceholderView {
             return;
         }
 
-        let ropeFromX = 95 + 55;
+        let ropeFromX = 180;
 
         this.tileContainers = [];
 
@@ -307,7 +312,7 @@ export class BridgePlaceholderView {
             ropeEnd.lineBetween(
                 lastCx,
                 this.bridgeWorldY,
-                rightBankX - 55,
+                rightBankX - 145,
                 this.bridgeWorldY,
             );
             this.ropeGraphics.push(ropeEnd);
@@ -381,7 +386,10 @@ export class BridgePlaceholderView {
             const isSelected = this.selectedTileNodeId === nodeId;
             // Tint the image slightly when selected and thicken the border
             image.clearTint();
-            border.setStrokeStyle(isSelected ? 4 : 2, isSelected ? 0xfff59d : 0x5d4037);
+            border.setStrokeStyle(
+                isSelected ? 4 : 2,
+                isSelected ? 0xfff59d : 0x5d4037,
+            );
             if (isSelected) {
                 image.setTint(0xfff59d);
             }

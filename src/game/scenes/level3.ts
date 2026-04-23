@@ -338,9 +338,14 @@ export class Level3 extends Scene {
         this.background = this.add.image(512, 384, "background");
         this.background.setAlpha(0.25);
 
-        this.player = this.physics.add.sprite(240, this.bridgePlayerY, "alex");
+        this.player = this.physics.add.sprite(
+            100,
+            this.bridgePlayerY + 47,
+            "alex",
+        );
         this.player.setCollideWorldBounds(true);
         (this.player.body as Phaser.Physics.Arcade.Body).setAllowGravity(false);
+        this.player.setDepth(35);
 
         this.anims.create({
             key: "turn",
