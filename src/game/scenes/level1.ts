@@ -511,8 +511,7 @@ export class Level1 extends Scene {
         this.cursors = this.input.keyboard?.createCursorKeys();
 
         // Bird speaking animation (used in the Level 1 intro popup).
-        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-        const birdFrames = this.textures.get("bird-speaking").frameTotal ?? 0;
+        const birdFrames = this.textures.get("bird-speaking").frameTotal;
         if (!this.anims.exists("bird-speaking-loop") && birdFrames > 1) {
             this.anims.create({
                 key: "bird-speaking-loop",
@@ -710,8 +709,6 @@ export class Level1 extends Scene {
                 this.scale.width,
                 this.scale.height,
             ),
-            // eslint-disable-next-line @typescript-eslint/unbound-method
-            Phaser.Geom.Rectangle.Contains,
         );
 
         this.introLayer = this.add.container(0, 0, [
