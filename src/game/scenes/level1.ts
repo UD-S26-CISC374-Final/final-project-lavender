@@ -707,8 +707,10 @@ export class Level1 extends Scene {
                 -this.scale.width / 2,
                 -this.scale.height / 2,
                 this.scale.width,
-                this.scale.height,
+                this.scale.height
             ),
+            (hitArea: Phaser.Geom.Rectangle, x: number, y: number) =>
+                Phaser.Geom.Rectangle.Contains(hitArea, x, y)
         );
 
         this.introLayer = this.add.container(0, 0, [
