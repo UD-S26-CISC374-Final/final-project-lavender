@@ -49,7 +49,7 @@ export class MainMenu extends Scene implements ChangeableScene {
         EventBus.emit("current-scene-ready", this);
 
         this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
-            this.startButton?.removeAllListeners();
+            this.startButton.removeAllListeners();
             this.input.keyboard?.off("keydown-ENTER");
         });
     }
