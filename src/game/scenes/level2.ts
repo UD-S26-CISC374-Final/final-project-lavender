@@ -8,9 +8,11 @@ import {
 import type { LinkedListModel, NodeId } from "../model/linked-list-model";
 import { BridgePlaceholderView } from "../objects/bridge-placeholder-view";
 import { getForwardChainNodeIds } from "../logic/forward-chain";
+import { codeBridgeDiagram } from "../logic/code-from-model";
 import {
     generateDeleteByValueTask,
     generateInsertAfterTask,
+    generatePredecessorClickTask,
     generateStructureIdentifyTask,
     type StructureKind,
 } from "../logic/random-structure-task";
@@ -18,7 +20,8 @@ import {
 type Level2QuestionType =
     | "structure_identify"
     | "delete_by_value_click"
-    | "insert_after_click";
+    | "insert_after_click"
+    | "predecessor_click";
 
 type RoundTask = {
     model: LinkedListModel;
@@ -29,26 +32,29 @@ type RoundTask = {
     expectedKind?: StructureKind;
     insertValue?: number;
     deleteValue?: number;
+    /** For delete_by_value_click only: the tile whose `.next` must be rewired. */
+    predecessorNodeId?: NodeId | null;
+    /** For delete_by_value_click only: the tile that should become the predecessor's new `.next`. */
+    successorNodeId?: NodeId | null;
+    targetValue?: number;
 };
 
-// Geometry constants must stay in sync with BridgePlaceholderView so the
-// backlink overlay lines up with the rendered planks.
-const TILE_W = 88;
-const STEP_X = 108;
-const BRIDGE_LAYOUT_START_X = 240;
-const BRIDGE_WORLD_Y = 430;
+const QUESTION_GOAL = 8;
 
 export class Level2 extends Scene {
     camera: Phaser.Cameras.Scene2D.Camera;
     background: Phaser.GameObjects.Image;
-    hintText: Phaser.GameObjects.Text;
+    private hintBanner!: Phaser.GameObjects.Rectangle;
+    private hintText!: Phaser.GameObjects.Text;
     private scoreboardText!: Phaser.GameObjects.Text;
     private feedbackText!: Phaser.GameObjects.Text;
+    private feedbackBackdrop!: Phaser.GameObjects.Rectangle;
     private submitButton!: Phaser.GameObjects.Text;
     private singlyButton!: Phaser.GameObjects.Text;
     private doublyButton!: Phaser.GameObjects.Text;
+    private codePanelText!: Phaser.GameObjects.Text;
+    private structureBadge!: Phaser.GameObjects.Text;
     private bridgeView: BridgePlaceholderView;
-    private backLinkGraphics: Phaser.GameObjects.Graphics | null = null;
     private currentTask: RoundTask | null = null;
     private currentNodeLabels = new Map<NodeId, string>();
     private selectedNodeId: NodeId | null = null;
@@ -59,6 +65,9 @@ export class Level2 extends Scene {
     private cursors?: Phaser.Types.Input.Keyboard.CursorKeys;
     private readonly bridgePlayerY = 365;
     private transitioning = false;
+    private introActive = false;
+    private introLayer?: Phaser.GameObjects.Container;
+    private questionQueue: Level2QuestionType[] = [];
 
     constructor() {
         super("Level2");
@@ -86,42 +95,75 @@ export class Level2 extends Scene {
         return labels;
     }
 
+    private nextQuestionType(): Level2QuestionType {
+        if (this.questionQueue.length === 0) {
+            const types: Level2QuestionType[] = [
+                "structure_identify",
+                "delete_by_value_click",
+                "insert_after_click",
+                "predecessor_click",
+            ];
+            for (let i = types.length - 1; i > 0; i--) {
+                const j = Phaser.Math.Between(0, i);
+                const tmp = types[i];
+                types[i] = types[j];
+                types[j] = tmp;
+            }
+            this.questionQueue.push(...types);
+        }
+        return this.questionQueue.shift() ?? "structure_identify";
+    }
+
     private createRoundTask(): RoundTask {
-        const roll = Phaser.Math.Between(0, 2);
-        if (roll === 0) {
+        const type = this.nextQuestionType();
+        if (type === "structure_identify") {
             const task = generateStructureIdentifyTask();
             const prevHint =
                 task.expectedKind === "doubly" ?
-                    "Yellow backlinks under each plank mark ->prev connections."
-                :   "No backlinks appear — only ->next connections.";
+                    "// Doubly: yellow <- prev arrows under each plank, two-way ropes."
+                :   "// Singly: only one rope direction (next ->), no prev arrows.";
             return {
                 model: task.model,
                 type: "structure_identify",
                 expectedKind: task.expectedKind,
                 questionLine:
-                    "Is this bridge a singly or doubly linked list? Choose Singly or Doubly, then press Submit.",
-                codeHintLine: `// ${prevHint} Doubly lists have both ->next and ->prev; singly lists have only ->next.`,
+                    "Is this bridge SINGLY or DOUBLY linked? Pick a button below, then press Submit.",
+                codeHintLine: prevHint,
             };
         }
-        if (roll === 1) {
+        if (type === "delete_by_value_click") {
             const task = generateDeleteByValueTask();
             return {
                 model: task.model,
                 type: "delete_by_value_click",
                 answerNodeId: task.answerNodeId,
                 deleteValue: task.targetValue,
-                questionLine: `Move Alex onto the tile with value ${task.targetValue} that must be removed, then press Submit.`,
-                codeHintLine: `// To delete node with value ${task.targetValue}: prev->next = node->next;`,
+                predecessorNodeId: task.predecessorNodeId,
+                successorNodeId: task.successorNodeId,
+                targetValue: task.targetValue,
+                questionLine: `Delete the tile with value ${task.targetValue}: walk Alex onto it, then press Submit.`,
+                codeHintLine: `// Deletion: prev->next = node->next; (skip the tile being removed)`,
             };
         }
-        const task = generateInsertAfterTask();
+        if (type === "insert_after_click") {
+            const task = generateInsertAfterTask();
+            return {
+                model: task.model,
+                type: "insert_after_click",
+                answerNodeId: task.answerNodeId,
+                insertValue: task.insertValue,
+                questionLine: `A new tile of value ${task.insertValue} must be inserted in sorted order. Walk Alex onto the tile it goes AFTER, then press Submit.`,
+                codeHintLine: `// Insertion: newNode->next = node->next; node->next = newNode;`,
+            };
+        }
+        const task = generatePredecessorClickTask();
         return {
             model: task.model,
-            type: "insert_after_click",
+            type: "predecessor_click",
             answerNodeId: task.answerNodeId,
-            insertValue: task.insertValue,
-            questionLine: `A new tile with value ${task.insertValue} must be inserted in sorted order. Move Alex onto the tile it should come AFTER, then press Submit.`,
-            codeHintLine: `// To insert value ${task.insertValue}: newNode->next = node->next; node->next = newNode;`,
+            targetValue: task.targetValue,
+            questionLine: `Walk Alex onto the node whose ->next currently points at the tile with value ${task.targetValue}. (That predecessor is what delete-by-value would rewire.)`,
+            codeHintLine: `// To delete value ${task.targetValue}, you must update the PREVIOUS node's ->next.`,
         };
     }
 
@@ -129,7 +171,6 @@ export class Level2 extends Scene {
         if (this.currentTask?.type === "structure_identify") {
             return;
         }
-        // Click-to-select is disabled for keyboard questions, but keep this for safety.
         this.selectedNodeId = nodeId;
     };
 
@@ -140,38 +181,10 @@ export class Level2 extends Scene {
             this.applyModelAndRedraw,
             this.onTileSelected,
             this.currentNodeLabels,
+            { accentDoubly: true },
         );
         this.bridgeView.setDragEnabled(false);
-        this.drawDoublyBackLinks(next);
     };
-
-    private drawDoublyBackLinks(model: LinkedListModel): void {
-        if (this.backLinkGraphics) {
-            this.backLinkGraphics.destroy();
-            this.backLinkGraphics = null;
-        }
-        if (model.kind !== "doubly") {
-            return;
-        }
-        const chain = getForwardChainNodeIds(model);
-        if (chain.length < 2) {
-            return;
-        }
-        const graphics = this.add.graphics();
-        graphics.setDepth(6);
-        graphics.lineStyle(3, 0xffd54f, 0.95);
-        const y = BRIDGE_WORLD_Y + 40;
-        for (let i = 1; i < chain.length; i++) {
-            const rightCx = BRIDGE_LAYOUT_START_X + i * STEP_X;
-            const leftCx = BRIDGE_LAYOUT_START_X + (i - 1) * STEP_X;
-            const xFrom = rightCx - TILE_W / 2;
-            const xTo = leftCx + TILE_W / 2;
-            graphics.lineBetween(xFrom, y, xTo, y);
-            graphics.fillStyle(0xffd54f, 1);
-            graphics.fillTriangle(xTo, y, xTo + 8, y - 5, xTo + 8, y + 5);
-        }
-        this.backLinkGraphics = graphics;
-    }
 
     private pushPanelPayload(model: LinkedListModel): void {
         const task = this.currentTask;
@@ -180,10 +193,8 @@ export class Level2 extends Scene {
         }
         const dragHintLine =
             task.type === "structure_identify" ?
-                "Choose Singly or Doubly using the buttons, then press Submit."
-            : task.type === "delete_by_value_click" ?
-                "Use arrow keys to move Alex onto the tile, then press Submit to delete."
-            :   "Use arrow keys to move Alex onto the tile, then press Submit.";
+                "Choose Singly or Doubly using the buttons below, then press Submit."
+            :   "Use the arrow keys to walk Alex onto the correct tile, then press Submit.";
         EventBus.emit(
             BRIDGE_DEMO_PANEL_EVENT,
             buildBridgeDemoPanelPayload(model, [], task.answerNodeId, {
@@ -192,11 +203,38 @@ export class Level2 extends Scene {
                 codeHintLine: task.codeHintLine,
             }),
         );
+        this.refreshOnscreenCodePanel(model, task.codeHintLine);
+        this.refreshStructureBadge(model);
+    }
+
+    private refreshOnscreenCodePanel(
+        model: LinkedListModel,
+        codeHintLine: string,
+    ): void {
+        const diagram = codeBridgeDiagram(model);
+        this.codePanelText.setText([
+            `// linked list (${model.kind})`,
+            diagram,
+            "",
+            codeHintLine,
+        ]);
+    }
+
+    private refreshStructureBadge(model: LinkedListModel): void {
+        if (model.kind === "doubly") {
+            this.structureBadge.setText("DOUBLY linked  next  +  prev");
+            this.structureBadge.setBackgroundColor("#00838f");
+            this.structureBadge.setColor("#ffffff");
+        } else {
+            this.structureBadge.setText("SINGLY linked  next  only");
+            this.structureBadge.setBackgroundColor("#fff59d");
+            this.structureBadge.setColor("#1b2e1b");
+        }
     }
 
     private updateScoreboardText(): void {
         this.scoreboardText.setText([
-            `Correct: ${this.correctCount}`,
+            `Correct: ${this.correctCount} / ${QUESTION_GOAL}`,
             `Incorrect: ${this.incorrectCount}`,
         ]);
     }
@@ -218,6 +256,56 @@ export class Level2 extends Scene {
         );
     }
 
+    private showFeedback(text: string, color: string): void {
+        this.feedbackText.setText(text);
+        this.feedbackText.setColor(color);
+        this.feedbackText.setVisible(true);
+        this.feedbackBackdrop.setVisible(true);
+        this.tweens.killTweensOf(this.feedbackText);
+        this.feedbackText.setScale(0.85);
+        this.tweens.add({
+            targets: this.feedbackText,
+            scale: 1.0,
+            duration: 220,
+            ease: "Back.easeOut",
+        });
+    }
+
+    private clearFeedback(): void {
+        this.feedbackText.setText("");
+        this.feedbackText.setVisible(false);
+        this.feedbackBackdrop.setVisible(false);
+    }
+
+    private animateDeletionAndAdvance(): void {
+        // Plays the rewiring of prev->next visually, then moves to the next round.
+        const task = this.currentTask;
+        if (!task || task.type !== "delete_by_value_click") {
+            this.startNewRound();
+            return;
+        }
+        const targetId = task.answerNodeId;
+        if (!targetId) {
+            this.startNewRound();
+            return;
+        }
+        const targetCenter = this.bridgeView.getTileCenter(targetId);
+        if (!targetCenter) {
+            this.startNewRound();
+            return;
+        }
+
+        // Highlight predecessor as "now repointing" so the player connects
+        // the abstract `prev->next = node->next;` to the visual outcome.
+        if (task.predecessorNodeId) {
+            this.bridgeView.flashCorrect(task.predecessorNodeId);
+        }
+        this.bridgeView.flashCorrect(targetId);
+        this.time.delayedCall(700, () => {
+            this.startNewRound();
+        });
+    }
+
     private submitCurrentAnswer(): void {
         if (this.transitioning) {
             return;
@@ -225,19 +313,59 @@ export class Level2 extends Scene {
         const correct = this.isSubmissionCorrect();
         if (correct) {
             this.correctCount += 1;
-            this.feedbackText.setText("Correct! Great work.");
-            this.feedbackText.setColor("#7ae582");
+            this.showFeedback("Correct! Pointer logic checks out.", "#7ae582");
+            const id =
+                this.currentTask?.answerNodeId ??
+                (this.selectedNodeId ?? "");
+            if (id) this.bridgeView.flashCorrect(id);
         } else {
             this.incorrectCount += 1;
-            this.feedbackText.setText("Not quite. New puzzle generated.");
-            this.feedbackText.setColor("#ff9e6c");
+            const correctId = this.currentTask?.answerNodeId;
+            const tellLine =
+                this.currentTask?.type === "structure_identify" ?
+                    `Wrong — this list was ${this.currentTask.expectedKind}.`
+                : correctId ?
+                    `Wrong — the correct tile was ${this.toLabel(correctId)}.`
+                :   "Not quite.";
+            this.showFeedback(tellLine, "#ff7043");
+            this.cameras.main.shake(220, 0.006);
+            this.cameras.main.flash(180, 130, 0, 0);
+            const wrongId =
+                this.selectedNodeId ?? this.currentTask?.answerNodeId ?? "";
+            if (wrongId) this.bridgeView.flashWrong(wrongId);
         }
         this.updateScoreboardText();
-        if (this.correctCount >= 10) {
+        if (this.correctCount >= QUESTION_GOAL) {
             this.autoWalkToRightAndStart("Level3");
             return;
         }
-        this.startNewRound();
+
+        // Special case: animate the deletion if correct on a delete question.
+        this.transitioning = true;
+        this.submitButton.disableInteractive();
+        this.singlyButton.disableInteractive();
+        this.doublyButton.disableInteractive();
+
+        const onAdvance = () => {
+            this.transitioning = false;
+            this.submitButton.setInteractive({ useHandCursor: true });
+            // The structure buttons re-enable themselves only when the task asks for them.
+            this.startNewRound();
+        };
+
+        if (correct && this.currentTask?.type === "delete_by_value_click") {
+            this.animateDeletionAndAdvance();
+            this.time.delayedCall(900, () => {
+                this.transitioning = false;
+                this.submitButton.setInteractive({ useHandCursor: true });
+            });
+            return;
+        }
+        this.time.delayedCall(correct ? 700 : 1100, onAdvance);
+    }
+
+    private toLabel(nodeId: NodeId): string {
+        return this.currentNodeLabels.get(nodeId) ?? nodeId;
     }
 
     private autoWalkToRightAndStart(nextSceneKey: string): void {
@@ -285,6 +413,10 @@ export class Level2 extends Scene {
         if (!isStructureQ) {
             return;
         }
+        if (!this.transitioning) {
+            this.singlyButton.setInteractive({ useHandCursor: true });
+            this.doublyButton.setInteractive({ useHandCursor: true });
+        }
         const colorFor = (selected: boolean) =>
             selected ? "#fff59d" : "#c8e6c9";
         this.singlyButton.setBackgroundColor(
@@ -302,20 +434,173 @@ export class Level2 extends Scene {
         this.selectedNodeId = null;
         this.selectedStructureKind = null;
         this.hintText.setText(task.questionLine);
+        this.layoutHintBanner();
         this.applyModelAndRedraw(task.model);
         this.bridgeView.clearSelection();
         this.refreshStructureButtons();
 
-        if (this.player && this.currentTask.type !== "structure_identify") {
-            this.player.setPosition(100, this.bridgePlayerY + 47);
+        if (this.player) {
+            const isStructure = this.currentTask.type === "structure_identify";
+            const bounds = this.bridgeView.getBridgeBounds();
+            const startX =
+                !isStructure && bounds ?
+                    bounds.minX + 16
+                :   (bounds?.minX ?? 100);
+            this.player.setPosition(startX, this.bridgePlayerY + 47);
             this.player.setVelocity(0, 0);
         }
+    }
+
+    private layoutHintBanner(): void {
+        const padX = 24;
+        const padY = 18;
+        const targetWidth = this.scale.width - 240;
+        this.hintText.setStyle({ wordWrap: { width: targetWidth } });
+        const h = Math.max(72, this.hintText.height + padY * 2);
+        this.hintBanner.setSize(this.scale.width, h);
+        this.hintText.setPosition(padX, padY);
+    }
+
+    private showIntroPopup(): void {
+        this.introActive = true;
+        this.submitButton.disableInteractive();
+        this.singlyButton.disableInteractive();
+        this.doublyButton.disableInteractive();
+        this.clearFeedback();
+
+        const overlay = this.add.rectangle(
+            this.scale.width / 2,
+            this.scale.height / 2,
+            this.scale.width,
+            this.scale.height,
+            0x000000,
+            0.45,
+        );
+        overlay.setDepth(1000);
+
+        const panelW = Math.min(820, this.scale.width - 80);
+        const panelH = 460;
+        const panelCenterY = this.scale.height / 2 + 40;
+        const panel = this.add.rectangle(
+            this.scale.width / 2,
+            panelCenterY,
+            panelW,
+            panelH,
+            0x0b1a0b,
+            0.86,
+        );
+        panel.setStrokeStyle(2, 0xfff59d, 0.65);
+        panel.setDepth(1001);
+
+        // Bird above the panel so it never sits behind text.
+        const bird = this.add
+            .sprite(
+                this.scale.width / 2,
+                panelCenterY - panelH / 2 - 70,
+                "bird-speaking",
+            )
+            .setDepth(1002);
+        bird.setScale(Math.min(0.85, panelW / 980));
+        if (this.anims.exists("bird-speaking-loop")) {
+            bird.anims.play("bird-speaking-loop");
+        }
+
+        const title = this.add
+            .text(
+                this.scale.width / 2,
+                panelCenterY - panelH / 2 + 24,
+                "Level 2 — Structure & Pointers",
+                {
+                    fontFamily: "Arial Black",
+                    fontSize: 28,
+                    color: "#fff59d",
+                },
+            )
+            .setOrigin(0.5, 0)
+            .setDepth(1002);
+
+        const body = this.add
+            .text(
+                this.scale.width / 2,
+                panelCenterY - panelH / 2 + 80,
+                [
+                    "Now the puzzles ask you about how the list is BUILT.",
+                    "",
+                    "  • SINGLY linked: one rope per gap (next ->).",
+                    "  • DOUBLY linked: one rope per gap PLUS yellow <- prev",
+                    "    arrows under each plank (next + prev).",
+                    "",
+                    "Some rounds ask you to pick a tile to delete or insert.",
+                    "Other rounds ask you to find the PREDECESSOR — the tile",
+                    "whose ->next pointer would have to change to delete a node.",
+                    "",
+                    `Solve ${QUESTION_GOAL} puzzles correctly to advance to Level 3.`,
+                ].join("\n"),
+                {
+                    fontFamily: "Arial",
+                    fontSize: 18,
+                    color: "#fffde7",
+                    align: "left",
+                    lineSpacing: 4,
+                    wordWrap: { width: panelW - 80 },
+                },
+            )
+            .setOrigin(0.5, 0)
+            .setDepth(1002);
+
+        const startBtn = this.add
+            .text(
+                this.scale.width / 2,
+                panelCenterY + panelH / 2 - 36,
+                "Start Level 2",
+                {
+                    fontFamily: "Arial Black",
+                    fontSize: 22,
+                    color: "#1b2e1b",
+                    backgroundColor: "#c8e6c9",
+                    padding: { left: 22, right: 22, top: 10, bottom: 10 },
+                },
+            )
+            .setOrigin(0.5, 0.5)
+            .setDepth(1002)
+            .setInteractive({ useHandCursor: true });
+        startBtn.on("pointerdown", () => this.closeIntroPopupAndStart());
+
+        overlay.setInteractive(
+            new Phaser.Geom.Rectangle(
+                -this.scale.width / 2,
+                -this.scale.height / 2,
+                this.scale.width,
+                this.scale.height,
+            ),
+            (hitArea: Phaser.Geom.Rectangle, x: number, y: number) =>
+                Phaser.Geom.Rectangle.Contains(hitArea, x, y),
+        );
+
+        this.introLayer = this.add.container(0, 0, [
+            overlay,
+            panel,
+            bird,
+            title,
+            body,
+            startBtn,
+        ]);
+        this.introLayer.setDepth(1000);
+    }
+
+    private closeIntroPopupAndStart(): void {
+        this.introActive = false;
+        this.introLayer?.destroy(true);
+        this.introLayer = undefined;
+        this.submitButton.setInteractive({ useHandCursor: true });
+        this.startNewRound();
     }
 
     create() {
         this.correctCount = 0;
         this.incorrectCount = 0;
         this.transitioning = false;
+        this.questionQueue = [];
 
         this.camera = this.cameras.main;
         this.camera.setBackgroundColor(0x152238);
@@ -357,27 +642,36 @@ export class Level2 extends Scene {
         });
         this.cursors = this.input.keyboard?.createCursorKeys();
 
+        const birdFrames = this.textures.get("bird-speaking").frameTotal;
+        if (!this.anims.exists("bird-speaking-loop") && birdFrames > 1) {
+            this.anims.create({
+                key: "bird-speaking-loop",
+                frames: this.anims.generateFrameNumbers("bird-speaking", {
+                    start: 0,
+                    end: Math.max(0, birdFrames - 1),
+                }),
+                frameRate: 5,
+                repeat: -1,
+            });
+        }
+
+        this.hintBanner = this.add
+            .rectangle(0, 0, this.scale.width, 80, 0x000000, 0.55)
+            .setOrigin(0, 0)
+            .setStrokeStyle(2, 0xfff59d, 0.6)
+            .setDepth(9);
         this.hintText = this.add
-            .text(24, 16, "", {
-                fontFamily: "Arial",
-                fontSize: 18,
+            .text(24, 18, "", {
+                fontFamily: "Arial Black",
+                fontSize: 22,
                 color: "#fffde7",
                 lineSpacing: 4,
-                wordWrap: { width: this.scale.width - 48 },
+                wordWrap: { width: this.scale.width - 240 },
             })
             .setDepth(10);
 
-        /*this.add
-            .text(this.scale.width / 2, 18, "Level 2", {
-                fontFamily: "Arial Black",
-                fontSize: 22,
-                color: "#ffecb3",
-            })
-            .setOrigin(0.5, 0)
-            .setDepth(20);
-*/
         this.scoreboardText = this.add
-            .text(this.scale.width - 24, 18, "", {
+            .text(this.scale.width - 24, 22, "", {
                 fontFamily: "Arial Black",
                 fontSize: 20,
                 color: "#fffde7",
@@ -386,13 +680,74 @@ export class Level2 extends Scene {
             .setOrigin(1, 0)
             .setDepth(20);
 
+        this.feedbackBackdrop = this.add
+            .rectangle(
+                this.scale.width / 2,
+                this.scale.height - 110,
+                720,
+                52,
+                0x000000,
+                0.55,
+            )
+            .setStrokeStyle(2, 0xfff59d, 0.45)
+            .setDepth(19)
+            .setVisible(false);
         this.feedbackText = this.add
-            .text(24, 72, "", {
-                fontFamily: "Arial",
-                fontSize: 18,
+            .text(this.scale.width / 2, this.scale.height - 110, "", {
+                fontFamily: "Arial Black",
+                fontSize: 22,
                 color: "#e3f2fd",
+                align: "center",
+                wordWrap: { width: 700 },
             })
-            .setDepth(20);
+            .setOrigin(0.5)
+            .setDepth(20)
+            .setVisible(false);
+
+        // Live code panel (top right)
+        const panelW = 360;
+        const panelH = 110;
+        this.add
+            .rectangle(
+                this.scale.width - 16,
+                70,
+                panelW,
+                panelH,
+                0x0b1a0b,
+                0.78,
+            )
+            .setOrigin(1, 0)
+            .setStrokeStyle(2, 0x4dd0e1, 0.7)
+            .setDepth(15);
+        this.add
+            .text(this.scale.width - 16 - panelW + 10, 76, "Live Code", {
+                fontFamily: "Arial Black",
+                fontSize: 13,
+                color: "#80deea",
+            })
+            .setDepth(16);
+        this.codePanelText = this.add
+            .text(this.scale.width - 16 - panelW + 10, 96, "", {
+                fontFamily: "Consolas, monospace",
+                fontSize: 13,
+                color: "#fffde7",
+                lineSpacing: 2,
+                wordWrap: { width: panelW - 20 },
+            })
+            .setDepth(16);
+
+        // Permanent structure-kind badge above the bridge so the player can
+        // always see whether this is singly or doubly.
+        this.structureBadge = this.add
+            .text(this.scale.width / 2, 200, "", {
+                fontFamily: "Arial Black",
+                fontSize: 16,
+                color: "#1b2e1b",
+                backgroundColor: "#fff59d",
+                padding: { left: 10, right: 10, top: 6, bottom: 6 },
+            })
+            .setOrigin(0.5, 0.5)
+            .setDepth(16);
 
         this.submitButton = this.add
             .text(this.scale.width - 24, this.scale.height - 36, "Submit", {
@@ -440,7 +795,7 @@ export class Level2 extends Scene {
         });
 
         this.updateScoreboardText();
-        this.startNewRound();
+        this.showIntroPopup();
 
         EventBus.emit("current-scene-ready", this);
 
@@ -449,27 +804,23 @@ export class Level2 extends Scene {
             this.submitButton.removeAllListeners();
             this.singlyButton.removeAllListeners();
             this.doublyButton.removeAllListeners();
-            if (this.backLinkGraphics) {
-                this.backLinkGraphics.destroy();
-                this.backLinkGraphics = null;
-            }
+            this.introLayer?.destroy(true);
         });
     }
 
     update() {
+        if (this.introActive) {
+            this.player?.setVelocityX(0);
+            this.player?.anims.play("turn");
+            return;
+        }
         if (this.transitioning) {
-            const p = this.player;
-            if (p && p.anims.currentAnim?.key !== "right") {
-                p.anims.play("right", true);
-            }
             return;
         }
         const task = this.currentTask;
+        const p = this.player;
         if (task && task.type !== "structure_identify") {
-            const p = this.player;
             if (p) {
-                // Use Alex's "feet" instead of his sprite center so the probe point
-                // overlaps the plank bounds reliably.
                 const footY = p.y + p.displayHeight * 0.5;
                 const nodeId = this.bridgeView.getNodeIdAtWorldPoint(p.x, footY);
                 this.selectedNodeId = nodeId;
@@ -477,20 +828,33 @@ export class Level2 extends Scene {
             }
 
             if (this.cursors?.left.isDown) {
-                this.player?.setVelocityX(-260);
-                this.player?.anims.play("left", true);
+                p?.setVelocityX(-260);
+                p?.anims.play("left", true);
             } else if (this.cursors?.right.isDown) {
-                this.player?.setVelocityX(260);
-                this.player?.anims.play("right", true);
+                p?.setVelocityX(260);
+                p?.anims.play("right", true);
             } else {
-                this.player?.setVelocityX(0);
-                this.player?.anims.play("turn");
+                p?.setVelocityX(0);
+                p?.anims.play("turn");
             }
         } else {
-            this.player?.setVelocityX(0);
-            this.player?.anims.play("turn");
+            p?.setVelocityX(0);
+            p?.anims.play("turn");
             this.bridgeView.setSelectedNodeId(null);
             this.selectedNodeId = null;
+        }
+
+        // Clamp Alex to the bridge.
+        const bounds = this.bridgeView.getBridgeBounds();
+        if (p && bounds) {
+            if (p.x < bounds.minX) {
+                p.x = bounds.minX;
+                p.setVelocityX(0);
+            }
+            if (p.x > bounds.maxX) {
+                p.x = bounds.maxX;
+                p.setVelocityX(0);
+            }
         }
     }
 

@@ -7,6 +7,7 @@ import {
 import { BridgePlaceholderView } from "../objects/bridge-placeholder-view";
 import type { LinkedListModel, NodeId } from "../model/linked-list-model";
 import { getForwardChainNodeIds } from "../logic/forward-chain";
+import { codeBridgeDiagram } from "../logic/code-from-model";
 import { generateRandomSinglyChain } from "../logic/random-singly-bridge";
 
 type Level3TaskType =
@@ -22,6 +23,8 @@ type RoundTask = {
     promptLine: string;
     expectedStatements: string[];
 };
+
+const QUESTION_GOAL = 6;
 
 function normalizeStatement(raw: string): string {
     return raw.replaceAll(/\s+/g, "").replaceAll(/;+$/g, "").toLowerCase();
@@ -65,11 +68,14 @@ function applyPointNextToHead(
 export class Level3 extends Scene {
     camera: Phaser.Cameras.Scene2D.Camera;
     background: Phaser.GameObjects.Image;
-    hintText: Phaser.GameObjects.Text;
+    private hintBanner!: Phaser.GameObjects.Rectangle;
+    private hintText!: Phaser.GameObjects.Text;
     private scoreboardText!: Phaser.GameObjects.Text;
     private feedbackText!: Phaser.GameObjects.Text;
+    private feedbackBackdrop!: Phaser.GameObjects.Rectangle;
     private submitButton!: Phaser.GameObjects.Text;
     private inputText!: Phaser.GameObjects.Text;
+    private codePanelText!: Phaser.GameObjects.Text;
 
     private bridgeView: BridgePlaceholderView;
     private player?: Phaser.Physics.Arcade.Sprite;
@@ -81,6 +87,9 @@ export class Level3 extends Scene {
     private acceptingInput = true;
     private readonly bridgePlayerY = 365;
     private transitioning = false;
+    private introActive = false;
+    private introLayer?: Phaser.GameObjects.Container;
+    private taskQueue: Level3TaskType[] = [];
 
     constructor() {
         super("Level3");
@@ -102,19 +111,32 @@ export class Level3 extends Scene {
         return labels;
     }
 
+    private nextTaskType(): Level3TaskType {
+        if (this.taskQueue.length === 0) {
+            const types: Level3TaskType[] = [
+                "skip_next",
+                "point_next_to_head",
+                "delete_head",
+                "cut_after_curr",
+            ];
+            for (let i = types.length - 1; i > 0; i--) {
+                const j = Phaser.Math.Between(0, i);
+                const tmp = types[i];
+                types[i] = types[j];
+                types[j] = tmp;
+            }
+            this.taskQueue.push(...types);
+        }
+        return this.taskQueue.shift() ?? "skip_next";
+    }
+
     private createRoundTask(): RoundTask {
-        // Ensure we have at least 4 nodes so `curr->next->next` exists for some tasks.
         for (let attempt = 0; attempt < 12; attempt++) {
             const model = generateRandomSinglyChain(Phaser.Math.Between(4, 6));
             const chain = getForwardChainNodeIds(model);
             if (chain.length < 4) continue;
 
-            const roll = Phaser.Math.Between(0, 3);
-            const type: Level3TaskType =
-                roll === 0 ? "skip_next"
-                : roll === 1 ? "point_next_to_head"
-                : roll === 2 ? "delete_head"
-                : "cut_after_curr";
+            const type = this.nextTaskType();
 
             if (type === "skip_next") {
                 const currIndex = Phaser.Math.Between(0, chain.length - 3);
@@ -157,7 +179,6 @@ export class Level3 extends Scene {
                 };
             }
 
-            // cut_after_curr
             const currIndex = Phaser.Math.Between(0, chain.length - 2);
             const currId = chain[currIndex] ?? "";
             if (!currId) continue;
@@ -171,7 +192,6 @@ export class Level3 extends Scene {
             };
         }
 
-        // Fallback (should be rare)
         const model = generateRandomSinglyChain(5);
         const chain = getForwardChainNodeIds(model);
         const currId = chain[1];
@@ -194,11 +214,24 @@ export class Level3 extends Scene {
             buildBridgeDemoPanelPayload(model, [], undefined, {
                 questionLine: task.promptLine,
                 dragHintLine:
-                    "Type your code below (example: curr->next = curr->next->next;) then press Submit.",
+                    "Type your code below (example: curr->next = curr->next->next;) then press Submit or Enter.",
                 codeHintLine:
                     "// Only ONE statement. Use reassignment (e.g. curr->next = ...).",
             }),
         );
+        this.refreshOnscreenCodePanel(model);
+    }
+
+    private refreshOnscreenCodePanel(model: LinkedListModel): void {
+        const diagram = codeBridgeDiagram(model);
+        const expected = this.currentTask?.expectedStatements[0] ?? "";
+        this.codePanelText.setText([
+            `// linked list (${model.kind})`,
+            diagram,
+            "",
+            "// goal pattern (you must type the exact code):",
+            expected,
+        ]);
     }
 
     private readonly applyModelAndRedraw = (next: LinkedListModel) => {
@@ -208,13 +241,14 @@ export class Level3 extends Scene {
             undefined,
             undefined,
             this.currentNodeLabels,
+            { accentDoubly: false },
         );
         this.bridgeView.setDragEnabled(false);
     };
 
     private updateScoreboardText(): void {
         this.scoreboardText.setText([
-            `Correct: ${this.correctCount}`,
+            `Correct: ${this.correctCount} / ${QUESTION_GOAL}`,
             `Incorrect: ${this.incorrectCount}`,
         ]);
     }
@@ -256,13 +290,33 @@ export class Level3 extends Scene {
             const nextHead = task.model.nodes[head].next;
             return { ...task.model, headId: nextHead };
         }
-        // cut_after_curr
         const nextModel = cloneSinglyModel(task.model);
         nextModel.nodes[task.currId] = {
             ...nextModel.nodes[task.currId],
             next: null,
         };
         return nextModel;
+    }
+
+    private showFeedback(text: string, color: string): void {
+        this.feedbackText.setText(text);
+        this.feedbackText.setColor(color);
+        this.feedbackText.setVisible(true);
+        this.feedbackBackdrop.setVisible(true);
+        this.tweens.killTweensOf(this.feedbackText);
+        this.feedbackText.setScale(0.85);
+        this.tweens.add({
+            targets: this.feedbackText,
+            scale: 1.0,
+            duration: 220,
+            ease: "Back.easeOut",
+        });
+    }
+
+    private clearFeedback(): void {
+        this.feedbackText.setText("");
+        this.feedbackText.setVisible(false);
+        this.feedbackBackdrop.setVisible(false);
     }
 
     private submitCurrentAnswer(): void {
@@ -273,43 +327,47 @@ export class Level3 extends Scene {
         const correct = this.isTypedAnswerCorrect();
         if (correct) {
             this.correctCount += 1;
-            this.feedbackText.setText("Correct! Statement compiled.");
-            this.feedbackText.setColor("#7ae582");
+            this.showFeedback(
+                "Correct! Statement compiled and applied.",
+                "#7ae582",
+            );
+            if (task) this.bridgeView.flashCorrect(task.currId);
         } else {
             this.incorrectCount += 1;
             const answer =
                 task?.expectedStatements[0] ?
-                    `Correct answer: ${task.expectedStatements[0]}`
+                    `Expected:  ${task.expectedStatements[0]}`
                 :   "";
-            this.feedbackText.setText(
-                answer ? `Not quite.\n${answer}` : "Not quite.",
+            this.showFeedback(
+                answer ? `Not quite.  ${answer}` : "Not quite.",
+                "#ff7043",
             );
-            this.feedbackText.setColor("#ff9e6c");
+            if (task) this.bridgeView.flashWrong(task.currId);
+            this.cameras.main.shake(220, 0.006);
+            this.cameras.main.flash(180, 130, 0, 0);
         }
         this.updateScoreboardText();
 
-        if (this.correctCount >= 10) {
+        if (this.correctCount >= QUESTION_GOAL) {
             this.autoWalkToRightAndStart("GameOver");
             return;
         }
 
         const nextModel = this.applyTypedAnswerIfCorrect();
         if (nextModel) {
-            // Show the effect briefly, then move on.
             this.acceptingInput = false;
             this.currentTask = { ...this.currentTask!, model: nextModel };
             this.applyModelAndRedraw(nextModel);
-            this.time.delayedCall(650, () => {
+            this.time.delayedCall(900, () => {
                 this.acceptingInput = true;
                 this.startNewRound();
             });
             return;
         }
 
-        // If incorrect, give the player a moment to read the answer.
         if (!correct) {
             this.acceptingInput = false;
-            this.time.delayedCall(1200, () => {
+            this.time.delayedCall(1500, () => {
                 this.acceptingInput = true;
                 this.startNewRound();
             });
@@ -355,15 +413,169 @@ export class Level3 extends Scene {
             task.currId,
         );
         this.hintText.setText(task.promptLine);
+        this.layoutHintBanner();
         this.clearTyped();
         this.applyModelAndRedraw(task.model);
         this.bridgeView.clearSelection();
+        // Position Alex over the curr tile so the player can SEE which node
+        // their typed code is acting on.
+        const center = this.bridgeView.getTileCenter(task.currId);
+        if (this.player && center) {
+            this.player.setPosition(center.x, this.bridgePlayerY + 47);
+            this.player.setVelocity(0, 0);
+        }
+    }
+
+    private layoutHintBanner(): void {
+        const padX = 24;
+        const padY = 18;
+        const targetWidth = this.scale.width - 240;
+        this.hintText.setStyle({ wordWrap: { width: targetWidth } });
+        const h = Math.max(72, this.hintText.height + padY * 2);
+        this.hintBanner.setSize(this.scale.width, h);
+        this.hintText.setPosition(padX, padY);
+    }
+
+    private showIntroPopup(): void {
+        this.introActive = true;
+        this.acceptingInput = false;
+        this.submitButton.disableInteractive();
+        this.clearFeedback();
+
+        const overlay = this.add.rectangle(
+            this.scale.width / 2,
+            this.scale.height / 2,
+            this.scale.width,
+            this.scale.height,
+            0x000000,
+            0.45,
+        );
+        overlay.setDepth(1000);
+
+        const panelW = Math.min(820, this.scale.width - 80);
+        const panelH = 460;
+        const panelCenterY = this.scale.height / 2 + 40;
+        const panel = this.add.rectangle(
+            this.scale.width / 2,
+            panelCenterY,
+            panelW,
+            panelH,
+            0x0b1a0b,
+            0.86,
+        );
+        panel.setStrokeStyle(2, 0xfff59d, 0.65);
+        panel.setDepth(1001);
+
+        const bird = this.add
+            .sprite(
+                this.scale.width / 2,
+                panelCenterY - panelH / 2 - 70,
+                "bird-speaking",
+            )
+            .setDepth(1002);
+        bird.setScale(Math.min(0.85, panelW / 980));
+        if (this.anims.exists("bird-speaking-loop")) {
+            bird.anims.play("bird-speaking-loop");
+        }
+
+        const title = this.add
+            .text(
+                this.scale.width / 2,
+                panelCenterY - panelH / 2 + 24,
+                "Level 3 — Type the Code",
+                {
+                    fontFamily: "Arial Black",
+                    fontSize: 28,
+                    color: "#fff59d",
+                },
+            )
+            .setOrigin(0.5, 0)
+            .setDepth(1002);
+
+        const body = this.add
+            .text(
+                this.scale.width / 2,
+                panelCenterY - panelH / 2 + 80,
+                [
+                    "Now you write the actual code.",
+                    "",
+                    "Each round shows the bridge with one tile labeled curr.",
+                    "Type ONE assignment that performs the operation",
+                    "described at the top of the screen, then press Enter or Submit.",
+                    "",
+                    "Tips:",
+                    "  • Type a period ( . ) and the game writes -> for you.",
+                    "  • Use head, curr, ->next, and null.",
+                    "  • Watch the bridge — it visually updates when you compile.",
+                    "",
+                    `Solve ${QUESTION_GOAL} rounds correctly to finish the game.`,
+                ].join("\n"),
+                {
+                    fontFamily: "Arial",
+                    fontSize: 18,
+                    color: "#fffde7",
+                    align: "left",
+                    lineSpacing: 4,
+                    wordWrap: { width: panelW - 80 },
+                },
+            )
+            .setOrigin(0.5, 0)
+            .setDepth(1002);
+
+        const startBtn = this.add
+            .text(
+                this.scale.width / 2,
+                panelCenterY + panelH / 2 - 36,
+                "Start Level 3",
+                {
+                    fontFamily: "Arial Black",
+                    fontSize: 22,
+                    color: "#1b2e1b",
+                    backgroundColor: "#c8e6c9",
+                    padding: { left: 22, right: 22, top: 10, bottom: 10 },
+                },
+            )
+            .setOrigin(0.5, 0.5)
+            .setDepth(1002)
+            .setInteractive({ useHandCursor: true });
+        startBtn.on("pointerdown", () => this.closeIntroPopupAndStart());
+
+        overlay.setInteractive(
+            new Phaser.Geom.Rectangle(
+                -this.scale.width / 2,
+                -this.scale.height / 2,
+                this.scale.width,
+                this.scale.height,
+            ),
+            (hitArea: Phaser.Geom.Rectangle, x: number, y: number) =>
+                Phaser.Geom.Rectangle.Contains(hitArea, x, y),
+        );
+
+        this.introLayer = this.add.container(0, 0, [
+            overlay,
+            panel,
+            bird,
+            title,
+            body,
+            startBtn,
+        ]);
+        this.introLayer.setDepth(1000);
+    }
+
+    private closeIntroPopupAndStart(): void {
+        this.introActive = false;
+        this.introLayer?.destroy(true);
+        this.introLayer = undefined;
+        this.acceptingInput = true;
+        this.submitButton.setInteractive({ useHandCursor: true });
+        this.startNewRound();
     }
 
     create() {
         this.correctCount = 0;
         this.incorrectCount = 0;
         this.transitioning = false;
+        this.taskQueue = [];
 
         this.camera = this.cameras.main;
         this.camera.setBackgroundColor(0x231942);
@@ -405,27 +617,36 @@ export class Level3 extends Scene {
         });
         this.player.anims.play("turn");
 
+        const birdFrames = this.textures.get("bird-speaking").frameTotal;
+        if (!this.anims.exists("bird-speaking-loop") && birdFrames > 1) {
+            this.anims.create({
+                key: "bird-speaking-loop",
+                frames: this.anims.generateFrameNumbers("bird-speaking", {
+                    start: 0,
+                    end: Math.max(0, birdFrames - 1),
+                }),
+                frameRate: 5,
+                repeat: -1,
+            });
+        }
+
+        this.hintBanner = this.add
+            .rectangle(0, 0, this.scale.width, 80, 0x000000, 0.55)
+            .setOrigin(0, 0)
+            .setStrokeStyle(2, 0xfff59d, 0.6)
+            .setDepth(9);
         this.hintText = this.add
-            .text(24, 16, "", {
-                fontFamily: "Arial",
-                fontSize: 18,
+            .text(24, 18, "", {
+                fontFamily: "Arial Black",
+                fontSize: 22,
                 color: "#fffde7",
                 lineSpacing: 4,
-                wordWrap: { width: this.scale.width - 48 },
+                wordWrap: { width: this.scale.width - 240 },
             })
             .setDepth(10);
 
-        /*this.add
-            .text(this.scale.width / 2, 18, "Level 3", {
-                fontFamily: "Arial Black",
-                fontSize: 22,
-                color: "#e9d8fd",
-            })
-            .setOrigin(0.5, 0)
-            .setDepth(20);
-*/
         this.scoreboardText = this.add
-            .text(this.scale.width - 24, 18, "", {
+            .text(this.scale.width - 24, 22, "", {
                 fontFamily: "Arial Black",
                 fontSize: 20,
                 color: "#fffde7",
@@ -434,13 +655,61 @@ export class Level3 extends Scene {
             .setOrigin(1, 0)
             .setDepth(20);
 
+        this.feedbackBackdrop = this.add
+            .rectangle(
+                this.scale.width / 2,
+                this.scale.height - 180,
+                720,
+                52,
+                0x000000,
+                0.6,
+            )
+            .setStrokeStyle(2, 0xfff59d, 0.45)
+            .setDepth(19)
+            .setVisible(false);
         this.feedbackText = this.add
-            .text(24, 72, "", {
-                fontFamily: "Arial",
-                fontSize: 18,
+            .text(this.scale.width / 2, this.scale.height - 180, "", {
+                fontFamily: "Arial Black",
+                fontSize: 20,
                 color: "#e3f2fd",
+                align: "center",
+                wordWrap: { width: 700 },
             })
-            .setDepth(20);
+            .setOrigin(0.5)
+            .setDepth(20)
+            .setVisible(false);
+
+        // Live code panel (top right)
+        const panelW = 360;
+        const panelH = 130;
+        this.add
+            .rectangle(
+                this.scale.width - 16,
+                70,
+                panelW,
+                panelH,
+                0x0b1a0b,
+                0.78,
+            )
+            .setOrigin(1, 0)
+            .setStrokeStyle(2, 0x4dd0e1, 0.7)
+            .setDepth(15);
+        this.add
+            .text(this.scale.width - 16 - panelW + 10, 76, "Live Code", {
+                fontFamily: "Arial Black",
+                fontSize: 13,
+                color: "#80deea",
+            })
+            .setDepth(16);
+        this.codePanelText = this.add
+            .text(this.scale.width - 16 - panelW + 10, 96, "", {
+                fontFamily: "Consolas, monospace",
+                fontSize: 13,
+                color: "#fffde7",
+                lineSpacing: 2,
+                wordWrap: { width: panelW - 20 },
+            })
+            .setDepth(16);
 
         this.add
             .text(24, this.scale.height - 120, "Your code (one line):", {
@@ -475,6 +744,7 @@ export class Level3 extends Scene {
         this.submitButton.on("pointerdown", () => this.submitCurrentAnswer());
 
         this.input.keyboard?.on("keydown", (e: KeyboardEvent) => {
+            if (this.introActive) return;
             if (!this.acceptingInput) return;
             if (e.key === "Enter") {
                 this.submitCurrentAnswer();
@@ -490,7 +760,6 @@ export class Level3 extends Scene {
                 return;
             }
             if (e.key.length === 1) {
-                // Basic input filter; allows symbols used in assignments.
                 if (this.typedBuffer.length >= 80) return;
                 if (e.key === ".") {
                     this.typedBuffer += "->";
@@ -502,7 +771,7 @@ export class Level3 extends Scene {
         });
 
         this.updateScoreboardText();
-        this.startNewRound();
+        this.showIntroPopup();
         this.refreshInputText();
 
         EventBus.emit("current-scene-ready", this);
@@ -511,12 +780,12 @@ export class Level3 extends Scene {
             this.bridgeView.destroy();
             this.submitButton.removeAllListeners();
             this.input.keyboard?.removeAllListeners();
+            this.introLayer?.destroy(true);
         });
     }
 
     update() {
         this.refreshInputText();
-        
     }
     changeScene() {
         this.scene.start("GameOver");

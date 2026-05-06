@@ -7,7 +7,7 @@ import { rechainSinglyInOrder } from "../model/linked-list-model";
 
 const TILE_W = 88;
 const TILE_H = 52;
-const STEP_X = 108; //space between the tiles
+const STEP_X = 108;
 const CLIFF_H = 850;
 const CLIFF_W = 450;
 
@@ -15,9 +15,20 @@ type ChainUpdated = (next: LinkedListModel) => void;
 type TileSelected = (nodeId: NodeId) => void;
 type NodeLabelById = ReadonlyMap<NodeId, string>;
 
+type DrawOptions = {
+    /**
+     * When true (default), the visuals emphasize a doubly-linked list:
+     * orange tinted planks and visible <-> connectors. Has no effect when the
+     * underlying model is singly-linked.
+     */
+    accentDoubly?: boolean;
+};
+
 /**
- * Placeholder planks + ropes + hiker. Planks are draggable; dropping re-links `.next`
- * left-to-right and sets `head` to the leftmost tile.
+ * Draws the bridge: planks (nodes), ropes (->next), arrowheads, optional <-prev
+ * connectors for doubly lists, and label badges. Handles drag-to-reorder and
+ * exposes helpers used by the level scenes (selection visuals, traversal
+ * animation, correct/wrong flashes, and bridge-bounds for clamping the player).
  */
 export class BridgePlaceholderView {
     private readonly scene: Scene;
@@ -25,19 +36,22 @@ export class BridgePlaceholderView {
     private tileContainers: Phaser.GameObjects.Container[] = [];
     private tileByNodeId = new Map<NodeId, Phaser.GameObjects.Container>();
     private ropeGraphics: Phaser.GameObjects.Graphics[] = [];
+    private backLinkGraphics: Phaser.GameObjects.Graphics | null = null;
     private lastModel: LinkedListModel | null = null;
     private onChainUpdated: ChainUpdated | null = null;
     private onTileSelected: TileSelected | null = null;
-    private bridgeWorldY: number = 430;
-    private layoutStartX: number = 0;
+    private bridgeWorldY: number = 485;
+    private layoutStartX: number = 240;
     private dragMinX = 160;
     private dragMaxX = 920;
     private dragListening = false;
     private dragEnabled = true;
     private selectedTileNodeId: NodeId | null = null;
-    /** Chain order when the current drag began (insertion reordering uses this as the base). */
+    private accentDoubly = true;
+    /** Chain order when the current drag began. */
     private orderAtDragStart: NodeId[] = [];
     private draggingNodeId: NodeId | null = null;
+    private draggedTileMover: ((tileX: number) => void) | null = null;
 
     private readonly onDragStart = (
         _pointer: Phaser.Input.Pointer,
@@ -52,6 +66,9 @@ export class BridgePlaceholderView {
         this.draggingNodeId = String(c.getData("nodeId"));
         for (const g of this.ropeGraphics) {
             g.setVisible(false);
+        }
+        if (this.backLinkGraphics) {
+            this.backLinkGraphics.setVisible(false);
         }
     };
 
@@ -89,6 +106,15 @@ export class BridgePlaceholderView {
             tile.x = this.layoutStartX + slot * STEP_X;
             tile.y = this.bridgeWorldY;
         });
+
+        // Notify the level so it can move other game objects (like Alex)
+        // along with the dragged tile.
+        if (this.draggedTileMover) {
+            const tile = this.tileByNodeId.get(this.draggingNodeId);
+            if (tile) {
+                this.draggedTileMover(tile.x);
+            }
+        }
     };
 
     private readonly onDragEnd = (
@@ -99,6 +125,9 @@ export class BridgePlaceholderView {
         void gameObject;
         for (const g of this.ropeGraphics) {
             g.setVisible(true);
+        }
+        if (this.backLinkGraphics) {
+            this.backLinkGraphics.setVisible(true);
         }
         this.draggingNodeId = null;
         this.orderAtDragStart = [];
@@ -142,12 +171,17 @@ export class BridgePlaceholderView {
         this.tileContainers = [];
         this.tileByNodeId.clear();
         this.ropeGraphics = [];
+        if (this.backLinkGraphics) {
+            this.backLinkGraphics.destroy();
+            this.backLinkGraphics = null;
+        }
         this.lastModel = null;
         this.onChainUpdated = null;
         this.onTileSelected = null;
         this.selectedTileNodeId = null;
         this.orderAtDragStart = [];
         this.draggingNodeId = null;
+        this.draggedTileMover = null;
     }
 
     private stopDragInput(): void {
@@ -178,12 +212,14 @@ export class BridgePlaceholderView {
         onChainUpdated?: ChainUpdated,
         onTileSelected?: TileSelected,
         nodeLabelById?: NodeLabelById,
+        options?: DrawOptions,
     ): void {
         this.destroy();
 
         this.lastModel = model;
         this.onChainUpdated = onChainUpdated ?? null;
         this.onTileSelected = onTileSelected ?? null;
+        this.accentDoubly = options?.accentDoubly !== false;
 
         const root = this.scene.add.container(0, 0);
         root.setDepth(5);
@@ -230,6 +266,12 @@ export class BridgePlaceholderView {
             return;
         }
 
+        const isDoubly = model.kind === "doubly" && this.accentDoubly;
+
+        // Color palette: singly = warm wood / yellow accents; doubly = cool teal accents
+        const ropeColor = isDoubly ? 0x4dd0e1 : 0xcbb69a;
+        const ropeBorderTint = isDoubly ? 0x00838f : 0x5d4037;
+
         let ropeFromX = 180;
 
         this.tileContainers = [];
@@ -242,13 +284,22 @@ export class BridgePlaceholderView {
             const node = model.nodes[id];
             const cx = startX + i * STEP_X;
 
+            // ->next rope (always drawn)
             const rope = this.scene.add.graphics();
-            rope.lineStyle(5, 0xcbb69a, 0.95);
+            rope.lineStyle(6, ropeColor, 0.95);
             rope.lineBetween(
                 ropeFromX,
                 this.bridgeWorldY,
                 cx - TILE_W / 2,
                 this.bridgeWorldY,
+            );
+            // Right-pointing arrowhead just before the plank
+            this.drawArrow(
+                rope,
+                cx - TILE_W / 2 - 14,
+                this.bridgeWorldY,
+                "right",
+                ropeColor,
             );
             this.ropeGraphics.push(rope);
             root.add(rope);
@@ -256,26 +307,27 @@ export class BridgePlaceholderView {
             const tile = this.scene.add.container(cx, this.bridgeWorldY);
             tile.setData("nodeId", id);
 
-            // Use a pixel-art image for the plank and a transparent rectangle as a border
             const plankImage = this.scene.add
                 .image(0, 0, "tile")
                 .setOrigin(0.5)
                 .setDisplaySize(TILE_W, TILE_H);
             const plankBorder = this.scene.add
                 .rectangle(0, 0, TILE_W, TILE_H, 0x000000, 0)
-                .setStrokeStyle(2, 0x5d4037);
+                .setStrokeStyle(2, ropeBorderTint);
             const valueLabel = this.scene.add
-                .text(0, 0, String(node.value), {
+                .text(0, -2, String(node.value), {
                     fontFamily: "Arial Black",
                     fontSize: 22,
                     color: "#3e2723",
                 })
                 .setOrigin(0.5);
             const idHint = this.scene.add
-                .text(0, 30, nodeLabelById?.get(id) ?? id, {
-                    fontFamily: "Arial",
-                    fontSize: 11,
-                    color: "#efebe9",
+                .text(0, 18, nodeLabelById?.get(id) ?? id, {
+                    fontFamily: "Arial Black",
+                    fontSize: 12,
+                    color: "#fffde7",
+                    backgroundColor: "#3e2723",
+                    padding: { left: 4, right: 4, top: 1, bottom: 1 },
                 })
                 .setOrigin(0.5);
 
@@ -305,18 +357,94 @@ export class BridgePlaceholderView {
             ropeFromX = cx + TILE_W / 2;
         }
 
+        // Trailing rope to the right cliff
         if (chain.length > 0) {
             const lastCx = startX + (chain.length - 1) * STEP_X + TILE_W / 2;
             const ropeEnd = this.scene.add.graphics();
-            ropeEnd.lineStyle(5, 0xcbb69a, 0.95);
+            ropeEnd.lineStyle(6, ropeColor, 0.95);
             ropeEnd.lineBetween(
                 lastCx,
                 this.bridgeWorldY,
                 rightBankX - 145,
                 this.bridgeWorldY,
             );
+            this.drawArrow(
+                ropeEnd,
+                rightBankX - 145 - 14,
+                this.bridgeWorldY,
+                "right",
+                ropeColor,
+            );
             this.ropeGraphics.push(ropeEnd);
             root.add(ropeEnd);
+        }
+
+        // Doubly-linked: visible <- prev arrows under each plank
+        if (isDoubly && chain.length >= 2) {
+            const back = this.scene.add.graphics();
+            back.setDepth(6);
+            const backY = this.bridgeWorldY + 36;
+            back.lineStyle(4, 0xffd54f, 0.95);
+            for (let i = 1; i < chain.length; i++) {
+                const rightCx = startX + i * STEP_X;
+                const leftCx = startX + (i - 1) * STEP_X;
+                const xFrom = rightCx - TILE_W / 2;
+                const xTo = leftCx + TILE_W / 2;
+                back.lineBetween(xFrom, backY, xTo, backY);
+                this.drawArrow(back, xTo + 6, backY, "left", 0xffd54f);
+            }
+            const label = this.scene.add
+                .text(
+                    startX - 10,
+                    backY,
+                    "<- prev",
+                    {
+                        fontFamily: "Arial Black",
+                        fontSize: 12,
+                        color: "#1b2e1b",
+                        backgroundColor: "#ffd54f",
+                        padding: { left: 4, right: 4, top: 2, bottom: 2 },
+                    },
+                )
+                .setOrigin(1, 0.5)
+                .setDepth(6);
+            const nextLabel = this.scene.add
+                .text(
+                    startX - 10,
+                    this.bridgeWorldY,
+                    "next ->",
+                    {
+                        fontFamily: "Arial Black",
+                        fontSize: 12,
+                        color: "#1b2e1b",
+                        backgroundColor: "#4dd0e1",
+                        padding: { left: 4, right: 4, top: 2, bottom: 2 },
+                    },
+                )
+                .setOrigin(1, 0.5)
+                .setDepth(6);
+            root.add(back);
+            root.add(label);
+            root.add(nextLabel);
+            this.backLinkGraphics = back;
+        } else {
+            // Singly: small "next ->" reminder near the head
+            const nextLabel = this.scene.add
+                .text(
+                    startX - 10,
+                    this.bridgeWorldY - 2,
+                    "next ->",
+                    {
+                        fontFamily: "Arial Black",
+                        fontSize: 12,
+                        color: "#3e2723",
+                        backgroundColor: "#fff59d",
+                        padding: { left: 4, right: 4, top: 2, bottom: 2 },
+                    },
+                )
+                .setOrigin(1, 0.5)
+                .setDepth(6);
+            root.add(nextLabel);
         }
 
         this.refreshSelectionVisuals();
@@ -328,6 +456,26 @@ export class BridgePlaceholderView {
         ) {
             this.startDragInput();
         }
+    }
+
+    private drawArrow(
+        g: Phaser.GameObjects.Graphics,
+        tipX: number,
+        tipY: number,
+        direction: "left" | "right",
+        color: number,
+    ): void {
+        const size = 9;
+        const dir = direction === "right" ? -1 : 1;
+        g.fillStyle(color, 1);
+        g.fillTriangle(
+            tipX,
+            tipY,
+            tipX + dir * size,
+            tipY - size * 0.7,
+            tipX + dir * size,
+            tipY + size * 0.7,
+        );
     }
 
     setDragEnabled(enabled: boolean): void {
@@ -342,6 +490,11 @@ export class BridgePlaceholderView {
         if (this.tileContainers.length > 0 && this.onChainUpdated) {
             this.startDragInput();
         }
+    }
+
+    /** Subscribe to receive the current dragged tile's x while drag is in progress. */
+    setDragMoveCallback(cb: ((tileX: number) => void) | null): void {
+        this.draggedTileMover = cb;
     }
 
     clearSelection(): void {
@@ -369,13 +522,127 @@ export class BridgePlaceholderView {
         return null;
     }
 
+    /** Returns the world-space center of a tile (or null if not present). */
+    getTileCenter(nodeId: NodeId): { x: number; y: number } | null {
+        const tile = this.tileByNodeId.get(nodeId);
+        if (!tile) {
+            return null;
+        }
+        return { x: tile.x, y: tile.y };
+    }
+
+    /** Returns how far Alex can walk along the bridge before falling off. */
+    getBridgeBounds(): { minX: number; maxX: number; y: number } | null {
+        if (this.tileContainers.length === 0) {
+            return null;
+        }
+        let minX = Number.POSITIVE_INFINITY;
+        let maxX = Number.NEGATIVE_INFINITY;
+        for (const t of this.tileContainers) {
+            minX = Math.min(minX, t.x - TILE_W / 2);
+            maxX = Math.max(maxX, t.x + TILE_W / 2);
+        }
+        // Allow Alex to step a little past the first/last plank (onto the rope/bank).
+        return { minX: minX - 36, maxX: maxX + 36, y: this.bridgeWorldY };
+    }
+
+    /** Brief green flash + slight pulse on a tile (correct answer). */
+    flashCorrect(nodeId: NodeId): void {
+        const tile = this.tileByNodeId.get(nodeId);
+        if (!tile) {
+            return;
+        }
+        const image = this.findImage(tile);
+        if (image) {
+            image.setTint(0x7ae582);
+            this.scene.tweens.add({
+                targets: image,
+                scale: 1.18,
+                duration: 180,
+                yoyo: true,
+                onComplete: () => {
+                    image.clearTint();
+                    image.setScale(1);
+                    this.refreshSelectionVisuals();
+                },
+            });
+        }
+    }
+
+    /** Brief red flash + shake on a tile (wrong answer). */
+    flashWrong(nodeId: NodeId): void {
+        const tile = this.tileByNodeId.get(nodeId);
+        if (!tile) {
+            return;
+        }
+        const image = this.findImage(tile);
+        if (image) {
+            image.setTint(0xff5252);
+        }
+        const baseX = tile.x;
+        this.scene.tweens.add({
+            targets: tile,
+            x: { from: baseX - 6, to: baseX + 6 },
+            duration: 60,
+            yoyo: true,
+            repeat: 3,
+            onComplete: () => {
+                tile.x = baseX;
+                if (image) {
+                    image.clearTint();
+                }
+                this.refreshSelectionVisuals();
+            },
+        });
+    }
+
+    /**
+     * Briefly highlight each node id in `path` in sequence to visualize a
+     * traversal. Returns total duration in ms.
+     */
+    animateTraversal(path: NodeId[], stepMs = 320): number {
+        let delay = 0;
+        for (const id of path) {
+            const tile = this.tileByNodeId.get(id);
+            if (!tile) {
+                continue;
+            }
+            const image = this.findImage(tile);
+            if (!image) {
+                continue;
+            }
+            this.scene.time.delayedCall(delay, () => {
+                image.setTint(0x80deea);
+                this.scene.tweens.add({
+                    targets: image,
+                    scale: 1.12,
+                    duration: stepMs * 0.45,
+                    yoyo: true,
+                    onComplete: () => {
+                        image.clearTint();
+                        image.setScale(1);
+                        this.refreshSelectionVisuals();
+                    },
+                });
+            });
+            delay += stepMs;
+        }
+        return delay;
+    }
+
+    private findImage(
+        tile: Phaser.GameObjects.Container,
+    ): Phaser.GameObjects.Image | undefined {
+        return tile.list.find(
+            (item): item is Phaser.GameObjects.Image =>
+                item instanceof Phaser.GameObjects.Image,
+        );
+    }
+
     private refreshSelectionVisuals(): void {
         for (const tile of this.tileContainers) {
             const nodeId = String(tile.getData("nodeId"));
-            const image = tile.list.find(
-                (item): item is Phaser.GameObjects.Image =>
-                    item instanceof Phaser.GameObjects.Image,
-            );
+            const image = this.findImage(tile);
             const border = tile.list.find(
                 (item): item is Phaser.GameObjects.Rectangle =>
                     item instanceof Phaser.GameObjects.Rectangle,
@@ -384,7 +651,6 @@ export class BridgePlaceholderView {
                 continue;
             }
             const isSelected = this.selectedTileNodeId === nodeId;
-            // Tint the image slightly when selected and thicken the border
             image.clearTint();
             border.setStrokeStyle(
                 isSelected ? 4 : 2,

@@ -16,6 +16,7 @@ import {
 import type { LinkedListModel, NodeId } from "../model/linked-list-model";
 import { BridgePlaceholderView } from "../objects/bridge-placeholder-view";
 import { getForwardChainNodeIds } from "../logic/forward-chain";
+import { codeBridgeDiagram } from "../logic/code-from-model";
 
 type Level1QuestionType =
     | "traversal_click"
@@ -33,13 +34,18 @@ type RoundTask = {
     traversalStartLabel?: string;
 };
 
+const QUESTION_GOAL = 8;
+
 export class Level1 extends Scene {
     camera: Phaser.Cameras.Scene2D.Camera;
     background: Phaser.GameObjects.Image;
-    hintText: Phaser.GameObjects.Text;
+    private hintBanner!: Phaser.GameObjects.Rectangle;
+    private hintText!: Phaser.GameObjects.Text;
     private scoreboardText!: Phaser.GameObjects.Text;
     private feedbackText!: Phaser.GameObjects.Text;
+    private feedbackBackdrop!: Phaser.GameObjects.Rectangle;
     private submitButton!: Phaser.GameObjects.Text;
+    private codePanelText!: Phaser.GameObjects.Text;
     private bridgeView: BridgePlaceholderView;
     private taskSteps: TraversalStep[] = [];
     private taskAnswerNodeId: NodeId = "";
@@ -61,6 +67,10 @@ export class Level1 extends Scene {
     private transitioning = false;
     private introActive = false;
     private introLayer?: Phaser.GameObjects.Container;
+    private arrowTutorialLayer?: Phaser.GameObjects.Container;
+    private playerHasMoved = false;
+    /** Round-robin shuffle queue used to avoid back-to-back repeats. */
+    private questionQueue: Level1QuestionType[] = [];
 
     constructor() {
         super("Level1");
@@ -76,7 +86,7 @@ export class Level1 extends Scene {
             steps: task.steps,
             answerNodeId: task.answerNodeId,
             type: "traversal_click",
-            questionLine: `Move Alex to the tile he will land on if he travels head${hops}, then press Submit.`,
+            questionLine: `Walk Alex to the tile he reaches if he travels  head${hops}, then press Submit.`,
             codeHintLine: `let node = head${hops};`,
         };
     }
@@ -140,7 +150,7 @@ export class Level1 extends Scene {
             steps: task.steps,
             answerNodeId: task.answerNodeId,
             type: "indexed_prev_click",
-            questionLine: `Move Alex to the node at ${startLabel}${path}, then press Submit.`,
+            questionLine: `Walk Alex to the node at  ${startLabel}${path}, then press Submit.`,
             codeHintLine: `let node = ${startLabel}${path};`,
             traversalStartNodeId: task.startNodeId,
             traversalStartLabel: startLabel,
@@ -158,7 +168,7 @@ export class Level1 extends Scene {
             answerNodeId: largestNodeId,
             type: "drag_largest_to_last",
             questionLine:
-                "Move the tile with the largest value to the last node.",
+                "Drag the tile holding the LARGEST value to the very end (tail position), then press Submit.",
             codeHintLine: this.buildCodeHintLine(task.model, largestNodeId),
         };
     }
@@ -198,12 +208,27 @@ export class Level1 extends Scene {
         return `${line};`;
     }
 
+    private nextQuestionType(): Level1QuestionType {
+        if (this.questionQueue.length === 0) {
+            const types: Level1QuestionType[] = [
+                "traversal_click",
+                "drag_largest_to_last",
+                "indexed_prev_click",
+            ];
+            // Shuffle in place (Fisher-Yates)
+            for (let i = types.length - 1; i > 0; i--) {
+                const j = Phaser.Math.Between(0, i);
+                const tmp = types[i];
+                types[i] = types[j];
+                types[j] = tmp;
+            }
+            this.questionQueue.push(...types);
+        }
+        return this.questionQueue.shift() ?? "traversal_click";
+    }
+
     private createRoundTask(): RoundTask {
-        const roll = Phaser.Math.Between(0, 2);
-        const type: Level1QuestionType =
-            roll === 0 ? "traversal_click"
-            : roll === 1 ? "drag_largest_to_last"
-            : "indexed_prev_click";
+        const type = this.nextQuestionType();
         return (
             type === "traversal_click" ? this.buildTraversalClickQuestion()
             : type === "drag_largest_to_last" ?
@@ -300,8 +325,8 @@ export class Level1 extends Scene {
     private pushPanelPayload(nextModel: LinkedListModel): void {
         const dragHintLine =
             this.currentQuestionType === "drag_largest_to_last" ?
-                "Drag tiles to reorder the linked list, then press Submit."
-            :   "Use arrow keys to move Alex onto a tile, then press Submit.";
+                "Click + drag a plank to reorder. Move the largest value to the right end."
+            :   "Use the arrow keys to walk Alex onto the correct tile, then press Submit.";
         const dragOverrides =
             this.currentQuestionType === "drag_largest_to_last" ?
                 this.buildDragCompilerStatus(nextModel, this.taskAnswerNodeId)
@@ -336,10 +361,24 @@ export class Level1 extends Scene {
                 },
             ),
         );
+        this.refreshOnscreenCodePanel(nextModel, codeHintLine);
+    }
+
+    private refreshOnscreenCodePanel(
+        model: LinkedListModel,
+        codeHintLine: string,
+    ): void {
+        const diagram = codeBridgeDiagram(model);
+        this.codePanelText.setText([
+            `// linked list (${model.kind})`,
+            diagram,
+            "",
+            "// what your move means in code",
+            codeHintLine,
+        ]);
     }
 
     private readonly onTileSelected = (nodeId: NodeId) => {
-        // Click-to-select is disabled for keyboard questions, but keep this for safety.
         this.selectedNodeId = nodeId;
     };
 
@@ -351,15 +390,24 @@ export class Level1 extends Scene {
             this.applyModelAndRedraw,
             this.onTileSelected,
             this.currentNodeLabels,
+            { accentDoubly: true },
         );
         this.bridgeView.setDragEnabled(
             this.currentQuestionType === "drag_largest_to_last",
         );
+        if (this.currentQuestionType === "drag_largest_to_last") {
+            this.bridgeView.setDragMoveCallback((tileX) => {
+                if (!this.player) return;
+                this.player.x = tileX;
+            });
+        } else {
+            this.bridgeView.setDragMoveCallback(null);
+        }
     };
 
     private updateScoreboardText(): void {
         this.scoreboardText.setText([
-            `Correct: ${this.correctCount}`,
+            `Correct: ${this.correctCount} / ${QUESTION_GOAL}`,
             `Incorrect: ${this.incorrectCount}`,
         ]);
     }
@@ -383,6 +431,54 @@ export class Level1 extends Scene {
         return lastNodeId === this.taskAnswerNodeId;
     }
 
+    private playTraversalAnimationIfApplicable(): number {
+        if (!this.currentModel) return 0;
+        if (
+            this.currentQuestionType !== "traversal_click" &&
+            this.currentQuestionType !== "indexed_prev_click"
+        ) {
+            return 0;
+        }
+        const startId =
+            this.currentTraversalStartNodeId ??
+            this.currentModel.headId ??
+            undefined;
+        if (!startId) return 0;
+        const path: NodeId[] = [startId];
+        let cur: NodeId = startId;
+        for (const step of this.taskSteps) {
+            if (!(cur in this.currentModel.nodes)) break;
+            const node = this.currentModel.nodes[cur];
+            const nextId = step === "next" ? node.next : node.prev;
+            if (nextId === null || !(nextId in this.currentModel.nodes)) break;
+            path.push(nextId);
+            cur = nextId;
+        }
+        return this.bridgeView.animateTraversal(path, 280);
+    }
+
+    private showFeedback(text: string, color: string): void {
+        this.feedbackText.setText(text);
+        this.feedbackText.setColor(color);
+        this.feedbackText.setVisible(true);
+        this.feedbackBackdrop.setVisible(true);
+        // Pulse to draw attention
+        this.tweens.killTweensOf(this.feedbackText);
+        this.feedbackText.setScale(0.85);
+        this.tweens.add({
+            targets: this.feedbackText,
+            scale: 1.0,
+            duration: 220,
+            ease: "Back.easeOut",
+        });
+    }
+
+    private clearFeedback(): void {
+        this.feedbackText.setText("");
+        this.feedbackText.setVisible(false);
+        this.feedbackBackdrop.setVisible(false);
+    }
+
     private submitCurrentAnswer(): void {
         if (this.transitioning) {
             return;
@@ -390,19 +486,52 @@ export class Level1 extends Scene {
         const isCorrect = this.isSubmissionCorrect();
         if (isCorrect) {
             this.correctCount += 1;
-            this.feedbackText.setText("Correct! Great work.");
-            this.feedbackText.setColor("#7ae582");
+            this.showFeedback(
+                "Correct! The pointers led right to that node.",
+                "#7ae582",
+            );
+            this.bridgeView.flashCorrect(this.taskAnswerNodeId);
         } else {
             this.incorrectCount += 1;
-            this.feedbackText.setText("Not quite. New puzzle generated.");
-            this.feedbackText.setColor("#ff9e6c");
+            this.showFeedback(
+                "Not quite — follow the arrows again. New puzzle coming up.",
+                "#ff7043",
+            );
+            this.cameras.main.shake(220, 0.006);
+            this.cameras.main.flash(180, 130, 0, 0);
+            const wrongId =
+                this.selectedNodeId ?? this.currentModel?.headId ?? "";
+            if (wrongId) this.bridgeView.flashWrong(wrongId);
         }
         this.updateScoreboardText();
-        if (this.correctCount >= 10) {
+        if (this.correctCount >= QUESTION_GOAL) {
             this.autoWalkToRightAndStart("Level2");
             return;
         }
-        this.startNewRound();
+
+        // For traversal-style questions, animate the correct path so the
+        // player visually connects the code (head->next->next) with the
+        // visited nodes. Then start the next round.
+        const animMs = this.playTraversalAnimationIfApplicable();
+        if (animMs > 0) {
+            this.transitioning = true;
+            this.submitButton.disableInteractive();
+            this.time.delayedCall(animMs + 350, () => {
+                this.transitioning = false;
+                this.submitButton.setInteractive({ useHandCursor: true });
+                this.startNewRound();
+            });
+            return;
+        }
+
+        // Otherwise short pause so the feedback can be read.
+        this.transitioning = true;
+        this.submitButton.disableInteractive();
+        this.time.delayedCall(800, () => {
+            this.transitioning = false;
+            this.submitButton.setInteractive({ useHandCursor: true });
+            this.startNewRound();
+        });
     }
 
     private autoWalkToRightAndStart(nextSceneKey: string): void {
@@ -447,17 +576,27 @@ export class Level1 extends Scene {
         this.dragBaseNodeLabels = this.buildNodeLabels(task.model);
         this.selectedNodeId = null;
         this.hintText.setText(task.questionLine);
+        this.layoutHintBanner();
         this.applyModelAndRedraw(task.model);
         this.bridgeView.clearSelection();
 
         // Reset Alex onto the bridge start for keyboard questions.
-        if (
-            this.player &&
-            (this.currentQuestionType === "traversal_click" ||
-                this.currentQuestionType === "indexed_prev_click")
-        ) {
-            this.player.setPosition(100, this.bridgePlayerY + 47);
+        if (this.player) {
+            const isKeyboard =
+                this.currentQuestionType === "traversal_click" ||
+                this.currentQuestionType === "indexed_prev_click";
+            const bounds = this.bridgeView.getBridgeBounds();
+            const startX =
+                isKeyboard && bounds ? bounds.minX + 16 : (bounds?.minX ?? 100);
+            this.player.setPosition(startX, this.bridgePlayerY + 47);
             this.player.setVelocity(0, 0);
+            // Show arrow-key tutorial only the first time a keyboard round
+            // appears AND only until the player actually moves.
+            if (isKeyboard && !this.playerHasMoved) {
+                this.showArrowTutorial();
+            } else {
+                this.hideArrowTutorial();
+            }
         }
     }
 
@@ -466,6 +605,8 @@ export class Level1 extends Scene {
         this.incorrectCount = 0;
         this.transitioning = false;
         this.introActive = true;
+        this.playerHasMoved = false;
+        this.questionQueue = [];
 
         this.camera = this.cameras.main;
         this.camera.setBackgroundColor(0x1b2e1b);
@@ -510,7 +651,6 @@ export class Level1 extends Scene {
 
         this.cursors = this.input.keyboard?.createCursorKeys();
 
-        // Bird speaking animation (used in the Level 1 intro popup).
         const birdFrames = this.textures.get("bird-speaking").frameTotal;
         if (!this.anims.exists("bird-speaking-loop") && birdFrames > 1) {
             this.anims.create({
@@ -524,18 +664,24 @@ export class Level1 extends Scene {
             });
         }
 
+        // Top hint banner (large, prominent)
+        this.hintBanner = this.add
+            .rectangle(0, 0, this.scale.width, 80, 0x000000, 0.55)
+            .setOrigin(0, 0)
+            .setStrokeStyle(2, 0xfff59d, 0.6)
+            .setDepth(9);
         this.hintText = this.add
-            .text(24, 16, "", {
-                fontFamily: "Arial",
-                fontSize: 18,
+            .text(24, 18, "", {
+                fontFamily: "Arial Black",
+                fontSize: 22,
                 color: "#fffde7",
                 lineSpacing: 4,
-                wordWrap: { width: this.scale.width - 48 },
+                wordWrap: { width: this.scale.width - 240 },
             })
             .setDepth(10);
 
         this.scoreboardText = this.add
-            .text(this.scale.width - 24, 18, "", {
+            .text(this.scale.width - 24, 22, "", {
                 fontFamily: "Arial Black",
                 fontSize: 20,
                 color: "#fffde7",
@@ -544,13 +690,65 @@ export class Level1 extends Scene {
             .setOrigin(1, 0)
             .setDepth(20);
 
+        // Bottom-center feedback (so it does not overlap top hint or buttons).
+        this.feedbackBackdrop = this.add
+            .rectangle(
+                this.scale.width / 2,
+                this.scale.height - 110,
+                720,
+                52,
+                0x000000,
+                0.55,
+            )
+            .setStrokeStyle(2, 0xfff59d, 0.45)
+            .setDepth(19)
+            .setVisible(false);
         this.feedbackText = this.add
-            .text(24, 72, "", {
-                fontFamily: "Arial",
-                fontSize: 18,
+            .text(this.scale.width / 2, this.scale.height - 110, "", {
+                fontFamily: "Arial Black",
+                fontSize: 22,
                 color: "#e3f2fd",
+                align: "center",
+                wordWrap: { width: 700 },
             })
-            .setDepth(20);
+            .setOrigin(0.5)
+            .setDepth(20)
+            .setVisible(false);
+
+        // On-canvas live code panel (top right under scoreboard).
+        // Visible from Level 1 so players see the linked list as code from
+        // the very first puzzle and learn that the code panel is gameplay
+        // information, not decoration.
+        const panelW = 360;
+        const panelH = 110;
+        this.add
+            .rectangle(
+                this.scale.width - 16,
+                70,
+                panelW,
+                panelH,
+                0x0b1a0b,
+                0.78,
+            )
+            .setOrigin(1, 0)
+            .setStrokeStyle(2, 0x4dd0e1, 0.7)
+            .setDepth(15);
+        this.add
+            .text(this.scale.width - 16 - panelW + 10, 76, "Live Code", {
+                fontFamily: "Arial Black",
+                fontSize: 13,
+                color: "#80deea",
+            })
+            .setDepth(16);
+        this.codePanelText = this.add
+            .text(this.scale.width - 16 - panelW + 10, 96, "", {
+                fontFamily: "Consolas, monospace",
+                fontSize: 13,
+                color: "#fffde7",
+                lineSpacing: 2,
+                wordWrap: { width: panelW - 20 },
+            })
+            .setDepth(16);
 
         this.submitButton = this.add
             .text(this.scale.width - 24, this.scale.height - 36, "Submit", {
@@ -576,13 +774,25 @@ export class Level1 extends Scene {
             this.bridgeView.destroy();
             this.submitButton.removeAllListeners();
             this.introLayer?.destroy(true);
+            this.arrowTutorialLayer?.destroy(true);
         });
     }
 
+    private layoutHintBanner(): void {
+        // Recompute banner height based on text wrap so the banner always
+        // fully contains the (now larger) hint text.
+        const padX = 24;
+        const padY = 18;
+        const targetWidth = this.scale.width - 240;
+        this.hintText.setStyle({ wordWrap: { width: targetWidth } });
+        const h = Math.max(72, this.hintText.height + padY * 2);
+        this.hintBanner.setSize(this.scale.width, h);
+        this.hintText.setPosition(padX, padY);
+    }
+
     private showIntroPopup(): void {
-        // Lock gameplay UI until player chooses.
         this.submitButton.disableInteractive();
-        this.feedbackText.setText("");
+        this.clearFeedback();
         this.hintText.setText("");
 
         const overlay = this.add.rectangle(
@@ -595,131 +805,111 @@ export class Level1 extends Scene {
         );
         overlay.setDepth(1000);
 
-        const panelW = Math.min(760, this.scale.width - 80);
-        const panelH = 380;
+        const panelW = Math.min(820, this.scale.width - 80);
+        const panelH = 460;
+        const panelCenterY = this.scale.height / 2 + 40;
         const panel = this.add.rectangle(
             this.scale.width / 2,
-            this.scale.height / 2,
+            panelCenterY,
             panelW,
             panelH,
             0x0b1a0b,
-            0.78,
+            0.86,
         );
         panel.setStrokeStyle(2, 0xfff59d, 0.65);
         panel.setDepth(1001);
 
+        // Move the bird ABOVE the panel so it never sits behind the text.
         const bird = this.add
             .sprite(
                 this.scale.width / 2,
-                this.scale.height / 2 - 120,
+                panelCenterY - panelH / 2 - 70,
                 "bird-speaking",
             )
             .setDepth(1002);
-        bird.setScale(Math.min(1, panelW / 820));
+        bird.setScale(Math.min(0.85, panelW / 980));
         if (this.anims.exists("bird-speaking-loop")) {
             bird.anims.play("bird-speaking-loop");
         }
 
-        const prompt = this.add
+        const title = this.add
             .text(
                 this.scale.width / 2,
-                this.scale.height / 2 - 20,
-                "Would you like to see the instructions?",
+                panelCenterY - panelH / 2 + 24,
+                "Welcome to Linked Lunacy!",
                 {
                     fontFamily: "Arial Black",
-                    fontSize: 24,
+                    fontSize: 28,
+                    color: "#fff59d",
+                },
+            )
+            .setOrigin(0.5, 0)
+            .setDepth(1002);
+
+        const body = this.add
+            .text(
+                this.scale.width / 2,
+                panelCenterY - panelH / 2 + 80,
+                [
+                    "Each plank in the bridge is a NODE in a linked list.",
+                    "The ropes between planks are the next pointers (->next).",
+                    "",
+                    "Your job: solve the puzzle shown at the top of the screen.",
+                    "  • Walk Alex with the LEFT / RIGHT arrow keys.",
+                    "  • Some rounds let you click + drag a plank to reorder it.",
+                    "  • Watch the live code box on the right — it always",
+                    "    matches the bridge below it.",
+                    "",
+                    `Solve ${QUESTION_GOAL} puzzles correctly to advance to Level 2.`,
+                ].join("\n"),
+                {
+                    fontFamily: "Arial",
+                    fontSize: 18,
                     color: "#fffde7",
-                    align: "center",
+                    align: "left",
+                    lineSpacing: 4,
                     wordWrap: { width: panelW - 80 },
                 },
             )
-            .setOrigin(0.5)
+            .setOrigin(0.5, 0)
             .setDepth(1002);
 
-        const makeButton = (
-            x: number,
-            label: string,
-            onClick: () => void,
-        ): Phaser.GameObjects.Text => {
-            const btn = this.add
-                .text(x, this.scale.height / 2 + 110, label, {
+        const startBtn = this.add
+            .text(
+                this.scale.width / 2,
+                panelCenterY + panelH / 2 - 36,
+                "Start Level 1",
+                {
                     fontFamily: "Arial Black",
                     fontSize: 22,
                     color: "#1b2e1b",
                     backgroundColor: "#c8e6c9",
-                    padding: { left: 18, right: 18, top: 10, bottom: 10 },
-                })
-                .setOrigin(0.5)
-                .setDepth(1002)
-                .setInteractive({ useHandCursor: true });
-            btn.on("pointerdown", () => onClick());
-            return btn;
-        };
+                    padding: { left: 22, right: 22, top: 10, bottom: 10 },
+                },
+            )
+            .setOrigin(0.5, 0.5)
+            .setDepth(1002)
+            .setInteractive({ useHandCursor: true });
+        startBtn.on("pointerdown", () => this.closeIntroPopupAndStart());
 
-        const skipBtn = makeButton(this.scale.width / 2 - 120, "Skip", () => {
-            this.closeIntroPopupAndStart();
-        });
-        const instrBtn = makeButton(
-            this.scale.width / 2 + 140,
-            "Instructions",
-            () => {
-                prompt.setText(
-                    "Hey there! welcome to linked lunancy, where you're goal is to traverse the bridge by either clicking and dragging teh bridge tiles based on the given instructions at the top of the screen of screen, move Alex to the corect tile by using the arrow keys, or by typing the correct line to based on given instructions. After answering 10 correct questions, you will move onto the next level. Good luck and have fun!",
-                );
-                skipBtn.setVisible(false).disableInteractive();
-                instrBtn.setVisible(false).disableInteractive();
-
-                const instructionsText = this.add
-                    .text(
-                        this.scale.width / 2,
-                        this.scale.height / 2 + 40,
-                        "",
-                        {
-                            fontFamily: "Arial",
-                            fontSize: 18,
-                            color: "#fffde7",
-                            align: "left",
-                            wordWrap: { width: panelW - 100 },
-                            lineSpacing: 6,
-                        },
-                    )
-                    .setOrigin(0.5)
-                    .setDepth(1002);
-
-                let continueBtn: Phaser.GameObjects.Text | null = null;
-                continueBtn = makeButton(
-                    this.scale.width / 2,
-                    "Continue",
-                    () => {
-                        continueBtn?.destroy();
-                        continueBtn = null;
-                        instructionsText.destroy();
-                        this.closeIntroPopupAndStart();
-                    },
-                );
-                continueBtn.setY(this.scale.height / 2 + 140);
-            },
-        );
-
-        // Block clicks from reaching the scene underneath.
         overlay.setInteractive(
             new Phaser.Geom.Rectangle(
                 -this.scale.width / 2,
                 -this.scale.height / 2,
                 this.scale.width,
-                this.scale.height
+                this.scale.height,
             ),
             (hitArea: Phaser.Geom.Rectangle, x: number, y: number) =>
-                Phaser.Geom.Rectangle.Contains(hitArea, x, y)
+                Phaser.Geom.Rectangle.Contains(hitArea, x, y),
         );
 
         this.introLayer = this.add.container(0, 0, [
             overlay,
             panel,
             bird,
-            prompt,
-            skipBtn,
-            instrBtn,
+            title,
+            body,
+            startBtn,
         ]);
         this.introLayer.setDepth(1000);
     }
@@ -729,34 +919,63 @@ export class Level1 extends Scene {
         this.introLayer?.destroy(true);
         this.introLayer = undefined;
 
-        // Re-enable gameplay UI and start the first round.
         this.submitButton.setInteractive({ useHandCursor: true });
         this.startNewRound();
     }
 
+    private showArrowTutorial(): void {
+        this.hideArrowTutorial();
+        const p = this.player;
+        if (!p) return;
+
+        const text = this.add
+            .text(
+                p.x + 28,
+                p.y - 48,
+                "← →  use arrow keys",
+                {
+                    fontFamily: "Arial Black",
+                    fontSize: 16,
+                    color: "#1b2e1b",
+                    backgroundColor: "#fff59d",
+                    padding: { left: 8, right: 8, top: 4, bottom: 4 },
+                },
+            )
+            .setOrigin(0, 0.5)
+            .setDepth(40);
+        this.tweens.add({
+            targets: text,
+            y: text.y - 6,
+            duration: 800,
+            yoyo: true,
+            repeat: -1,
+            ease: "Sine.easeInOut",
+        });
+        this.arrowTutorialLayer = this.add.container(0, 0, [text]);
+        this.arrowTutorialLayer.setDepth(40);
+    }
+
+    private hideArrowTutorial(): void {
+        this.arrowTutorialLayer?.destroy(true);
+        this.arrowTutorialLayer = undefined;
+    }
+
     update() {
         if (this.introActive) {
-            // Keep Alex idle behind the popup.
             this.player?.setVelocityX(0);
             this.player?.anims.play("turn");
             return;
         }
         if (this.transitioning) {
-            const p = this.player;
-            if (p && p.anims.currentAnim?.key !== "right") {
-                p.anims.play("right", true);
-            }
             return;
         }
-        // For keyboard questions, derive the "selected" node from where Alex is standing.
+        // For keyboard questions, derive the "selected" node from where Alex stands.
         if (
             this.currentQuestionType === "traversal_click" ||
             this.currentQuestionType === "indexed_prev_click"
         ) {
             const p = this.player;
             if (p) {
-                // Use Alex's "feet" instead of his sprite center so the probe point
-                // actually overlaps the plank bounds.
                 const footY = p.y + p.displayHeight * 0.5;
                 const nodeId = this.bridgeView.getNodeIdAtWorldPoint(
                     p.x,
@@ -767,15 +986,46 @@ export class Level1 extends Scene {
             }
         }
 
+        const p = this.player;
+        const bounds = this.bridgeView.getBridgeBounds();
         if (this.cursors?.left.isDown) {
-            this.player?.setVelocityX(-260);
-            this.player?.anims.play("left", true);
+            p?.setVelocityX(-260);
+            p?.anims.play("left", true);
+            if (!this.playerHasMoved) {
+                this.playerHasMoved = true;
+                this.hideArrowTutorial();
+            }
         } else if (this.cursors?.right.isDown) {
-            this.player?.setVelocityX(260);
-            this.player?.anims.play("right", true);
+            p?.setVelocityX(260);
+            p?.anims.play("right", true);
+            if (!this.playerHasMoved) {
+                this.playerHasMoved = true;
+                this.hideArrowTutorial();
+            }
         } else {
-            this.player?.setVelocityX(0);
-            this.player?.anims.play("turn");
+            p?.setVelocityX(0);
+            p?.anims.play("turn");
+        }
+
+        // Clamp Alex to the bridge bounds so he can't walk off and "fall".
+        if (p && bounds) {
+            if (p.x < bounds.minX) {
+                p.x = bounds.minX;
+                p.setVelocityX(0);
+            }
+            if (p.x > bounds.maxX) {
+                p.x = bounds.maxX;
+                p.setVelocityX(0);
+            }
+        }
+
+        // Keep the arrow tutorial near Alex while it's visible.
+        if (this.arrowTutorialLayer && p) {
+            const list = this.arrowTutorialLayer.list;
+            if (list.length > 0) {
+                const child = list[0] as Phaser.GameObjects.Text;
+                child.x = p.x + 28;
+            }
         }
     }
 

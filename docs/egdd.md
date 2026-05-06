@@ -1,4 +1,4 @@
-# Linked Lunancy
+# Linked Lunacy
 
 ## Elevator Pitch
 
@@ -8,24 +8,24 @@ Linked Lunacy is a puzzle based educational game where players repair, reorder, 
 
 - Influence #1: Pipes
     - Medium: Video Game
-    - Explanation: Pipes is a logic puzzel where you must connect the pipes to create a path that connects all the pipes. Similarly, Linked Lunancy is about building a bridge to connect two sides and using logic to build the bridge.
+    - Explanation: Pipes is a logic puzzle where you must connect the pipes to create a path that connects all the pipes. Similarly, Linked Lunacy is about building a bridge to connect two sides and using logic to build the bridge.
 - Influence #2: Tetris 99
     - Medium: Video Game
-    - Explanation: Tetris 99 is about matching and connecting pieces to clear blocks as pieces fall down. The more blocks cleared, the more points earned. Similarly, Linked Lunancy will have bridge pieces that are continuously given to the player and they must use those pieces to connect the bridge. Loss points/fail when bridge piece nodes are not correctly connected.
+    - Explanation: Tetris 99 is about matching and connecting pieces to clear blocks as pieces fall down. The more blocks cleared, the more points earned. Similarly, Linked Lunacy will have bridge pieces that are continuously given to the player and they must use those pieces to connect the bridge. Players lose points or fail when bridge piece nodes are not correctly connected.
 - Influence #3: Human Resource Machine
     - Medium: Video Game
     - Explanation: Human Resource Machine teaches programming logic through interactive puzzles rather than lectures. Linked Lunacy follows a similar approach by teaching linked list operations through visual experimentation, mistake correction, and level based challenges.
 - Influence #4: Earthbound
     - Medium: Video Game
-    - Explanation: the character and art design is meant to be pixel similar to that of Earthbound to create and warm and fun game art style. Also gives it a more authentic game feel and in general more inviting.
+    - Explanation: The character and art design is meant to be pixel-similar to that of Earthbound to create a warm and fun art style. It also gives the game a more authentic feel and a more inviting atmosphere.
 
 ## Core Gameplay Mechanics (Brief)
 
-- Players must click and drag the connectors (pointers) between each bridge tile to build the bridge
-- Players must safely remove "bad" tiles to prevent the bridge from collapsing/losing points
-- Players must be able to traverse the bridge based on given code statements and arrive at the correct location (i.e. spot= head->next->next->prev)
-- Bridge tiles represent nodes within a linked list and connectors represent pointers that link nodes together
-- Players must ensure that node coneections maintain a valid linked list structure
+- Players must click and drag the connectors (pointers) between each bridge tile to build the bridge.
+- Players must safely remove "bad" tiles to prevent the bridge from collapsing/losing points.
+- Players must traverse the bridge based on given code statements and arrive at the correct location (i.e. spot = head->next->next->prev).
+- Bridge tiles represent nodes within a linked list and connectors represent pointers that link nodes together.
+- Players must ensure that node connections maintain a valid linked list structure.
 
 # Learning Aspects
 
@@ -43,7 +43,7 @@ Linked Lunacy is a puzzle based educational game where players repair, reorder, 
 - Novice and Intermediate computer programmers
 - Logic puzzle game players
 - Users interested in data structures
-- Self-taught programmers seeking visual ways to undertand abstract programming
+- Self-taught programmers seeking visual ways to understand abstract programming
 
 ## Target Contexts
 
@@ -62,7 +62,7 @@ Linked Lunacy is a puzzle based educational game where players repair, reorder, 
 ## Prerequisite Knowledge
 
 - Prior to the game, players should explain the differences and similarities between a linked list and an array
-- Prior to the game, players must be a able to create and identify the conponents of objects in either python/javascript/typescript/C/C++ or some other programming language that uses objects
+- Prior to the game, players must be able to create and identify the components of objects in either Python, JavaScript, TypeScript, C, C++, or some other programming language that uses objects
 - Players should be familiar with basic programming terminology such as variables, objects, and references
 - Players should be able to follow simple logical instructions similar to pseudocode
 
@@ -154,7 +154,7 @@ Linked Lunacy is a puzzle based educational game where players repair, reorder, 
 
         - Instructions: Select what type of bridge this is:
             1. Singly linked bridge
-            2. Soubly linked bridge
+            2. Doubly linked bridge
 
 # What sets this project apart?
 
@@ -168,11 +168,11 @@ Linked Lunacy is a puzzle based educational game where players repair, reorder, 
 
 ## Player Interaction Pattern
 
-Players interact with the game using a mouse and keyboard. Nodes and pointer connectors can be selected, dragged, or repositioned depending on the objective of the level. Most levels involve inspecting a chain of nodes, modifying pointer connections, inserting new nodes, or removing incorrect nodes while maintaining a valid linked list structure. The game is designed primarily as a single player experience where the player solves logic puzzlesinvoling nore manipulation. Immediate feedback is given when connections are valid or incorrect, allowing players to learn through trial, correction, and iteration.
+Players interact with the game using a mouse and keyboard. Nodes and pointer connectors can be selected, dragged, or repositioned depending on the objective of the level. Most levels involve inspecting a chain of nodes, modifying pointer connections, inserting new nodes, or removing incorrect nodes while maintaining a valid linked list structure. The game is designed primarily as a single player experience where the player solves logic puzzles involving node manipulation. Immediate feedback is given when connections are valid or incorrect, allowing players to learn through trial, correction, and iteration.
 
 ## Player Modes
 
-- Main Menu: Allows players to start the game through choosign a type of linked list challenge.
+- Main Menu: Allows players to start the game by choosing a type of linked list challenge.
 - Gameplay Mode: Players solve linked list puzzles involving traversal, insertion, deletion, and structure identification. As players answer questions correctly, the difficulty increases by introducing more complex linked list operations and larger node structures.
 - Game Over/Results: After the player makes too many mistakes or completes a sequence of puzzles, the game displays the player's performance statistics such as number of correct answers, accuracy, and highest difficulty reached.
 
@@ -211,7 +211,7 @@ Players can perform several actions during gameplay:
 
 Players are presented with puzzles involving linked list structures. Each puzzle asks the player to perform a specific task such as identifying the correct node after traversal, inserting a node in the correct location, or deleting a node while maintaining proper pointer connections.
 
-The player must ensre that all nodes remain connected correctly so the linked list remains valid. Incorrect pointer connections may cause the structure to break, preventing traversal from reaching all nodes.
+The player must ensure that all nodes remain connected correctly so the linked list remains valid. Incorrect pointer connections may cause the structure to break, preventing traversal from reaching all nodes.
 
 The game tracks the number of incorrect answers the player makes. If the player exceeds the allowed number of mistakes, the game ends and the player is shown their results. Correct answers increase the player's score and gradually increase the difficulty of future puzzles.
 
@@ -266,7 +266,7 @@ A traveler needs to cross a broken bridge made of connected tiles, but many of t
 ![Alt text](storyboard.JPG)
 A rough sketch of a storyboard of the game
 
-- Scene 1: The inital state of the game in which the player is given a gorup of bridge tiles (nodes) and must place and connect them correctly through a click and drag function
+- Scene 1: The initial state of the game in which the player is given a group of bridge tiles (nodes) and must place and connect them correctly through a click-and-drag interaction
 - Scene 2: The second scene shows a successfully completed bridge
 - Scene 3: The third scene is the player given statements of code the shows the correct in order in which to travel the bridge as to not get blown off
 - Scene 4: Scene 4 is an example of the player landing on the correct tile node and progressing to the next stage

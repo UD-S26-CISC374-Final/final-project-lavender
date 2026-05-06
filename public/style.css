@@ -1,7 +1,7 @@
 body {
     margin: 0;
     padding: 0;
-    color: rgba(255, 255, 255, 0.87);
+    color: rgba(255, 255, 255, 0.92);
     background-color: #000000;
     font-family: Arial, Helvetica, sans-serif;
 }
@@ -45,47 +45,58 @@ body {
     justify-content: flex-start;
     align-items: stretch;
     gap: 8px;
-    max-width: 420px;
-    margin: 8px;
+    width: 360px;
+    flex: 0 0 360px;
+    margin: 12px;
 }
 
 .bridge-demo-panel {
-    font-size: 0.85rem;
-    line-height: 1.4;
-    background-color: rgba(20, 32, 40, 0.95);
-    padding: 12px 14px;
-    border-radius: 8px;
+    font-size: 0.95rem;
+    line-height: 1.45;
+    background-color: rgba(20, 32, 40, 0.96);
+    padding: 14px 16px;
+    border-radius: 10px;
     border: 1px solid #0ec3c9;
-    color: rgba(255, 255, 255, 0.92);
+    color: rgba(255, 255, 255, 0.94);
+    box-shadow: 0 6px 22px rgba(0, 0, 0, 0.3);
+}
+
+.bridge-demo-panel .panel-heading {
+    margin: 0 0 6px;
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    font-weight: 700;
+    color: #80deea;
 }
 
 .bridge-demo-panel .level-question {
     margin: 0 0 10px;
-    font-size: 1.05rem;
-    font-weight: 600;
+    font-size: 1.18rem;
+    font-weight: 700;
     line-height: 1.35;
     color: #fff9c4;
 }
 
 .bridge-demo-panel .drag-hint {
-    margin: 0 0 12px;
-    font-size: 0.82rem;
-    line-height: 1.35;
+    margin: 0 0 14px;
+    font-size: 0.92rem;
+    line-height: 1.4;
     color: #b2ebf2;
 }
 
 .bridge-demo-panel .code-live-block {
-    margin-bottom: 12px;
+    margin-bottom: 14px;
     padding: 10px 12px;
-    background: rgba(0, 0, 0, 0.35);
+    background: rgba(0, 0, 0, 0.4);
     border-radius: 6px;
-    border: 1px solid rgba(14, 195, 201, 0.45);
+    border: 1px solid rgba(14, 195, 201, 0.55);
 }
 
 .bridge-demo-panel .code-live-label {
-    font-size: 0.75rem;
+    font-size: 0.72rem;
     text-transform: uppercase;
-    letter-spacing: 0.04em;
+    letter-spacing: 0.06em;
     color: #80deea;
     margin-bottom: 6px;
 }
@@ -95,7 +106,32 @@ body {
     white-space: pre-wrap;
     word-break: break-word;
     font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
-    font-size: 0.8rem;
+    font-size: 0.86rem;
+    line-height: 1.4;
+}
+
+.bridge-demo-panel pre.code-comment {
+    color: #a5d6a7;
+}
+
+.bridge-demo-panel pre.code-diagram {
+    color: #fff59d;
+    margin: 4px 0;
+    font-weight: 700;
+}
+
+.bridge-demo-panel pre.code-hint {
+    color: #b2ebf2;
+}
+
+.bridge-demo-panel .status-block {
+    border-top: 1px dashed rgba(14, 195, 201, 0.35);
+    padding-top: 10px;
+}
+
+.bridge-demo-panel .status-block p {
+    margin: 0 0 6px;
+    font-weight: 700;
 }
 
 .bridge-demo-panel .ok {
@@ -110,20 +146,14 @@ body {
     margin-top: 8px;
     padding-top: 8px;
     border-top: 1px solid rgba(14, 195, 201, 0.35);
+    color: #ffe082;
+    font-weight: 700;
 }
 
-#ui-panel .spritePosition {
-    margin: 10px 0 0 10px;
-    font-size: 0.8em;
-    background-color: rgba(250, 250, 250, 0.8);
-    padding: 5px;
-    border-radius: 5px;
-    color: black;
-}
-
-.spritePosition {
-    margin: 10px 0 0 10px;
-    font-size: 0.8em;
+.bridge-demo-panel pre.structure-lines {
+    margin-top: 6px;
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 0.78rem;
 }
 
 .button {
@@ -145,7 +175,6 @@ body {
         background-color: #0ec3c9;
     }
 
-    /* Disabled styles */
     &:disabled {
         cursor: not-allowed;
         border: 1px solid rgba(255, 255, 255, 0.3);

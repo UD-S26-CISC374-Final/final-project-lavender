@@ -39,12 +39,19 @@ export type DeleteByValueTask = {
     model: LinkedListModel;
     /** Value that appears on exactly one tile; the tile with this value is the correct pick. */
     targetValue: number;
+    /** The tile to be deleted. */
     answerNodeId: NodeId;
+    /** Tile whose `.next` must be reassigned to skip the deleted tile (or null if the head is being deleted). */
+    predecessorNodeId: NodeId | null;
+    /** Tile that the predecessor's `.next` must point at after deletion (or null if the deleted tile was the tail). */
+    successorNodeId: NodeId | null;
 };
 
 /**
  * Builds a singly chain and chooses a non-endpoint (when possible) tile as
  * the target so the deletion question always requires repairing neighboring pointers.
+ * Returns enough info for the level to animate the deletion (the predecessor and
+ * successor of the deleted tile).
  */
 export function generateDeleteByValueTask(): DeleteByValueTask {
     const chainLength = randInt(4, 6);
@@ -58,10 +65,47 @@ export function generateDeleteByValueTask(): DeleteByValueTask {
     );
     const pickIndex = randInt(firstSelectable, lastSelectable);
     const targetId = chain[pickIndex];
+    const predecessorId = pickIndex > 0 ? chain[pickIndex - 1] : null;
+    const successorId =
+        pickIndex < chain.length - 1 ? chain[pickIndex + 1] : null;
     const targetNode = model.nodes[targetId];
     const targetValue = targetNode.value;
 
-    return { model, targetValue, answerNodeId: targetId };
+    return {
+        model,
+        targetValue,
+        answerNodeId: targetId,
+        predecessorNodeId: predecessorId,
+        successorNodeId: successorId,
+    };
+}
+
+export type PredecessorClickTask = {
+    model: LinkedListModel;
+    /** Value of the tile the player must find the predecessor of. */
+    targetValue: number;
+    /** The tile that comes immediately BEFORE the tile with `targetValue`. */
+    answerNodeId: NodeId;
+};
+
+/**
+ * Builds a singly chain and asks the player to walk Alex to the node that
+ * comes BEFORE the tile with a given value. Conceptually this is "find the
+ * predecessor pointer that delete-by-value would have to update."
+ */
+export function generatePredecessorClickTask(): PredecessorClickTask {
+    const chainLength = randInt(4, 6);
+    const model = generateRandomSinglyChain(chainLength);
+    const chain = getForwardChainNodeIds(model);
+
+    // Pick a target that isn't the head (so a predecessor exists).
+    const targetIndex = randInt(1, Math.max(1, chain.length - 1));
+    const targetId = chain[targetIndex];
+    const targetNode = model.nodes[targetId];
+    const targetValue = targetNode.value;
+    const predecessorId = chain[targetIndex - 1];
+
+    return { model, targetValue, answerNodeId: predecessorId };
 }
 
 export type InsertAfterTask = {
