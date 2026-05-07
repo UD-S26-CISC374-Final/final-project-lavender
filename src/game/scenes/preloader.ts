@@ -32,8 +32,28 @@ export class Preloader extends Scene {
         // Tile image for bridge planks (add a pixel-art tile.png into public/assets)
         this.load.image("tile", "bridge-tile.png");
         this.load.image("cliff", "cliff.png");
-        this.load.spritesheet("alex", "Alex.png", { frameWidth: 128, frameHeight: 128 });
-        this.load.spritesheet("bird-speaking", "bird-speaking-Sheet.png", { frameWidth: 320, frameHeight: 180 });
+        this.load.spritesheet("alex", "Alex.png", {
+            frameWidth: 128,
+            frameHeight: 128,
+        });
+        this.load.spritesheet("alex-falling", "Alex-falling.png", {
+            frameWidth: 32,
+            frameHeight: 38,
+        });
+        this.load.spritesheet("bird-speaking", "bird-speaking-Sheet.png", {
+            frameWidth: 320,
+            frameHeight: 180,
+        });
+        this.load.audio("bgAudio", "Week 1.5 - Super Retro Lounge.ogg");
+        this.load.audio(
+            "errorSound",
+            "674824__themrangelgames584__error-sound.ogg",
+        );
+        this.load.audio(
+            "correctSound",
+            "335908__littlerainyseasons__correct.mp3",
+        );
+        this.load.audio("buttonSound", "506054__mellau__button-click-1.wav");
     }
 
     create() {

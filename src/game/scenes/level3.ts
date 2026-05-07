@@ -96,6 +96,25 @@ export class Level3 extends Scene {
         this.bridgeView = new BridgePlaceholderView(this);
     }
 
+    private ensureBgAudio(): void {
+        const existing = this.sound.get("bgAudio") as
+            | Phaser.Sound.BaseSound
+            | null;
+        const bg =
+            existing ??
+            this.sound.add("bgAudio", {
+                loop: true,
+                volume: 0.35,
+            });
+        if (!bg.isPlaying) {
+            bg.play();
+        }
+    }
+
+    private playButtonSound(): void {
+        this.sound.play("buttonSound");
+    }
+
     private buildDisplayLabels(model: LinkedListModel, currId: NodeId) {
         const chain = getForwardChainNodeIds(model);
         const labels = new Map<NodeId, string>();
@@ -326,6 +345,7 @@ export class Level3 extends Scene {
         const task = this.currentTask;
         const correct = this.isTypedAnswerCorrect();
         if (correct) {
+            this.sound.play("correctSound");
             this.correctCount += 1;
             this.showFeedback(
                 "Correct! Statement compiled and applied.",
@@ -333,6 +353,7 @@ export class Level3 extends Scene {
             );
             if (task) this.bridgeView.flashCorrect(task.currId);
         } else {
+            this.sound.play("errorSound");
             this.incorrectCount += 1;
             const answer =
                 task?.expectedStatements[0] ?
@@ -538,7 +559,10 @@ export class Level3 extends Scene {
             .setOrigin(0.5, 0.5)
             .setDepth(1002)
             .setInteractive({ useHandCursor: true });
-        startBtn.on("pointerdown", () => this.closeIntroPopupAndStart());
+        startBtn.on("pointerdown", () => {
+            this.playButtonSound();
+            this.closeIntroPopupAndStart();
+        });
 
         overlay.setInteractive(
             new Phaser.Geom.Rectangle(
@@ -572,6 +596,8 @@ export class Level3 extends Scene {
     }
 
     create() {
+        this.ensureBgAudio();
+
         this.correctCount = 0;
         this.incorrectCount = 0;
         this.transitioning = false;
@@ -741,7 +767,10 @@ export class Level3 extends Scene {
             .setOrigin(1, 1)
             .setDepth(25)
             .setInteractive({ useHandCursor: true });
-        this.submitButton.on("pointerdown", () => this.submitCurrentAnswer());
+        this.submitButton.on("pointerdown", () => {
+            this.playButtonSound();
+            this.submitCurrentAnswer();
+        });
 
         this.input.keyboard?.on("keydown", (e: KeyboardEvent) => {
             if (this.introActive) return;

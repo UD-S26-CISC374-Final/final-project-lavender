@@ -74,6 +74,25 @@ export class Level2 extends Scene {
         this.bridgeView = new BridgePlaceholderView(this);
     }
 
+    private ensureBgAudio(): void {
+        const existing = this.sound.get("bgAudio") as
+            | Phaser.Sound.BaseSound
+            | null;
+        const bg =
+            existing ??
+            this.sound.add("bgAudio", {
+                loop: true,
+                volume: 0.35,
+            });
+        if (!bg.isPlaying) {
+            bg.play();
+        }
+    }
+
+    private playButtonSound(): void {
+        this.sound.play("buttonSound");
+    }
+
     private buildDisplayLabels(model: LinkedListModel): Map<NodeId, string> {
         const chain = getForwardChainNodeIds(model);
         const labels = new Map<NodeId, string>();
@@ -312,6 +331,7 @@ export class Level2 extends Scene {
         }
         const correct = this.isSubmissionCorrect();
         if (correct) {
+            this.sound.play("correctSound");
             this.correctCount += 1;
             this.showFeedback("Correct! Pointer logic checks out.", "#7ae582");
             const id =
@@ -319,6 +339,7 @@ export class Level2 extends Scene {
                 (this.selectedNodeId ?? "");
             if (id) this.bridgeView.flashCorrect(id);
         } else {
+            this.sound.play("errorSound");
             this.incorrectCount += 1;
             const correctId = this.currentTask?.answerNodeId;
             const tellLine =
@@ -564,7 +585,10 @@ export class Level2 extends Scene {
             .setOrigin(0.5, 0.5)
             .setDepth(1002)
             .setInteractive({ useHandCursor: true });
-        startBtn.on("pointerdown", () => this.closeIntroPopupAndStart());
+        startBtn.on("pointerdown", () => {
+            this.playButtonSound();
+            this.closeIntroPopupAndStart();
+        });
 
         overlay.setInteractive(
             new Phaser.Geom.Rectangle(
@@ -597,6 +621,8 @@ export class Level2 extends Scene {
     }
 
     create() {
+        this.ensureBgAudio();
+
         this.correctCount = 0;
         this.incorrectCount = 0;
         this.transitioning = false;
@@ -761,6 +787,7 @@ export class Level2 extends Scene {
             .setDepth(25)
             .setInteractive({ useHandCursor: true });
         this.submitButton.on("pointerdown", () => {
+            this.playButtonSound();
             this.submitCurrentAnswer();
         });
 
@@ -776,6 +803,7 @@ export class Level2 extends Scene {
             .setDepth(25)
             .setInteractive({ useHandCursor: true });
         this.singlyButton.on("pointerdown", () => {
+            this.playButtonSound();
             this.setStructureSelection("singly");
         });
 
@@ -791,6 +819,7 @@ export class Level2 extends Scene {
             .setDepth(25)
             .setInteractive({ useHandCursor: true });
         this.doublyButton.on("pointerdown", () => {
+            this.playButtonSound();
             this.setStructureSelection("doubly");
         });
 

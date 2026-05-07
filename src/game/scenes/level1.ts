@@ -71,10 +71,31 @@ export class Level1 extends Scene {
     private playerHasMoved = false;
     /** Round-robin shuffle queue used to avoid back-to-back repeats. */
     private questionQueue: Level1QuestionType[] = [];
+    private bgAudio?: Phaser.Sound.BaseSound;
 
     constructor() {
         super("Level1");
         this.bridgeView = new BridgePlaceholderView(this);
+    }
+
+    private ensureBgAudio(): void {
+        const existing = this.sound.get("bgAudio") as
+            | Phaser.Sound.BaseSound
+            | null;
+        const bg =
+            existing ??
+            this.sound.add("bgAudio", {
+                loop: true,
+                volume: 0.35,
+            });
+        this.bgAudio = bg;
+        if (!bg.isPlaying) {
+            bg.play();
+        }
+    }
+
+    private playButtonSound(): void {
+        this.sound.play("buttonSound");
     }
 
     private buildTraversalClickQuestion(): RoundTask {
@@ -485,6 +506,7 @@ export class Level1 extends Scene {
         }
         const isCorrect = this.isSubmissionCorrect();
         if (isCorrect) {
+            this.sound.play("correctSound");
             this.correctCount += 1;
             this.showFeedback(
                 "Correct! The pointers led right to that node.",
@@ -492,6 +514,7 @@ export class Level1 extends Scene {
             );
             this.bridgeView.flashCorrect(this.taskAnswerNodeId);
         } else {
+            this.sound.play("errorSound");
             this.incorrectCount += 1;
             this.showFeedback(
                 "Not quite — follow the arrows again. New puzzle coming up.",
@@ -601,6 +624,8 @@ export class Level1 extends Scene {
     }
 
     create() {
+        this.ensureBgAudio();
+
         this.correctCount = 0;
         this.incorrectCount = 0;
         this.transitioning = false;
@@ -762,6 +787,7 @@ export class Level1 extends Scene {
             .setDepth(25)
             .setInteractive({ useHandCursor: true });
         this.submitButton.on("pointerdown", () => {
+            this.playButtonSound();
             this.submitCurrentAnswer();
         });
 
@@ -890,7 +916,10 @@ export class Level1 extends Scene {
             .setOrigin(0.5, 0.5)
             .setDepth(1002)
             .setInteractive({ useHandCursor: true });
-        startBtn.on("pointerdown", () => this.closeIntroPopupAndStart());
+        startBtn.on("pointerdown", () => {
+            this.playButtonSound();
+            this.closeIntroPopupAndStart();
+        });
 
         overlay.setInteractive(
             new Phaser.Geom.Rectangle(
