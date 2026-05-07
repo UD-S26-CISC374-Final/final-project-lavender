@@ -71,7 +71,6 @@ export class Level1 extends Scene {
     private playerHasMoved = false;
     /** Round-robin shuffle queue used to avoid back-to-back repeats. */
     private questionQueue: Level1QuestionType[] = [];
-    private bgAudio?: Phaser.Sound.BaseSound;
 
     constructor() {
         super("Level1");
@@ -79,16 +78,16 @@ export class Level1 extends Scene {
     }
 
     private ensureBgAudio(): void {
-        const existing = this.sound.get("bgAudio") as
-            | Phaser.Sound.BaseSound
-            | null;
+        const existing = this.sound.get(
+            "bgAudio",
+        ) as Phaser.Sound.BaseSound | null;
         const bg =
             existing ??
             this.sound.add("bgAudio", {
                 loop: true,
                 volume: 0.35,
             });
-        this.bgAudio = bg;
+
         if (!bg.isPlaying) {
             bg.play();
         }
@@ -958,18 +957,13 @@ export class Level1 extends Scene {
         if (!p) return;
 
         const text = this.add
-            .text(
-                p.x + 28,
-                p.y - 48,
-                "← →  use arrow keys",
-                {
-                    fontFamily: "Arial Black",
-                    fontSize: 16,
-                    color: "#1b2e1b",
-                    backgroundColor: "#fff59d",
-                    padding: { left: 8, right: 8, top: 4, bottom: 4 },
-                },
-            )
+            .text(p.x + 28, p.y - 48, "← →  use arrow keys", {
+                fontFamily: "Arial Black",
+                fontSize: 16,
+                color: "#1b2e1b",
+                backgroundColor: "#fff59d",
+                padding: { left: 8, right: 8, top: 4, bottom: 4 },
+            })
             .setOrigin(0, 0.5)
             .setDepth(40);
         this.tweens.add({
