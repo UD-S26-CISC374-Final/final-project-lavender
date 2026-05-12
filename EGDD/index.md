@@ -2,7 +2,7 @@
 
 ## Elevator Pitch
 
-Linked Lunacy is a puzzle based educational game where players repair, reorder, and traverse chains of nodes to learn how linked lists function through interactive problem solving.
+Linked Lunacy is a puzzle based educational game where players reorder, identify, traverse, and rewrite chains of nodes to learn how linked lists function through interactive problem solving.
 
 ## Influences (Brief)
 
@@ -21,11 +21,11 @@ Linked Lunacy is a puzzle based educational game where players repair, reorder, 
 
 ## Core Gameplay Mechanics (Brief)
 
-- Players must click and drag the connectors (pointers) between each bridge tile to build the bridge.
-- Players must safely remove "bad" tiles to prevent the bridge from collapsing/losing points.
-- Players must traverse the bridge based on given code statements and arrive at the correct location (i.e. spot = head->next->next->prev).
-- Bridge tiles represent nodes within a linked list and connectors represent pointers that link nodes together.
-- Players must ensure that node connections maintain a valid linked list structure.
+- Players walk Alex across the bridge using the LEFT and RIGHT arrow keys to land on the tile that answers the current puzzle, then press Submit.
+- Players can click and drag a plank to reorder it within the bridge (used in Level 1 to move the largest value to the tail position).
+- Players traverse the bridge based on given code statements such as `head->next->next` or `n3->prev->prev` and arrive at the correct tile.
+- Bridge tiles represent nodes within a linked list and the ropes between them represent the `next` (and optionally `prev`) pointers.
+- In Level 3, players type a single C-style reassignment statement (for example, `curr->next = curr->next->next;`) to mutate the bridge, and the visual structure updates to reflect the typed code.
 
 # Learning Aspects
 
@@ -113,26 +113,39 @@ Linked Lunacy is a puzzle based educational game where players repair, reorder, 
         - New given tile: [10]
         - Instructions: Drag the tile into the correct position so the bridge remains properly connected.
 
-- Given a broken linked list, correctly repair the pointer connection so that the list can be fully traversed (logic)
-    - Ex: Repair the broken linked list.
+- Given a value to delete from a linked list, identify the predecessor tile whose `->next` must be rewired (logic)
+    - Ex: Identify which node would need its `next` pointer changed to delete the node with value 8.
 
     ```js
-    // head -> [5]    [8] -> [12] -> null
-    // (broken link between 5 and 8)
-    head.next = null; // incorrect
+    // head -> [5] -> [8] -> [12] -> null
+    let prev = head;        // node with value 5
+    prev.next = prev.next.next; // skip the [8] tile
     ```
 
-    - Fix: head.next = node8;
-    - Result: head -> [5] -> [8] -> [12] -> null
+    - Answer: The node with value 5 — its `next` pointer is what gets rewired to skip the deleted tile.
 
-    - In game scenario: A rope between two bridge planks has snapped! The hiker cannot cross until the bridge is repaired.
+    - In game scenario: Walk Alex onto the tile whose `->next` currently points at the target value. That predecessor is what delete-by-value would rewire.
         - Bridge:
 
         ```js
-        [5]    [8] -> [12]
+        [5] -> [8] -> [12]
         ```
 
-        - Instructions: Reconnect the broken link so the hiker can travel across the entire bridge.
+        - Instructions: Walk Alex onto the predecessor tile, then press Submit.
+
+- Given a goal stated in English, type a single reassignment statement that performs the operation (rubric)
+    - Ex: "Delete the node after `curr` by skipping it."
+
+    ```js
+    curr->next = curr->next->next;
+    ```
+
+    - Grading:
+        - Statement uses reassignment (`=`) and ends as a single line
+        - The target on the left-hand side is the pointer the operation should change
+        - The right-hand side evaluates to the correct surviving node
+
+    - In game scenario: One plank on the bridge is labeled `curr`. The player types the statement into the input box and presses Submit; if the statement matches the goal pattern, the bridge animates the resulting pointer change.
 
 - Given a linked list structure, identify whether the structure represents a singly or doubly linked list (logic)
     - Ex: Is this singly or doubly linked?
@@ -168,77 +181,80 @@ Linked Lunacy is a puzzle based educational game where players repair, reorder, 
 
 ## Player Interaction Pattern
 
-Players interact with the game using a mouse and keyboard. Nodes and pointer connectors can be selected, dragged, or repositioned depending on the objective of the level. Most levels involve inspecting a chain of nodes, modifying pointer connections, inserting new nodes, or removing incorrect nodes while maintaining a valid linked list structure. The game is designed primarily as a single player experience where the player solves logic puzzles involving node manipulation. Immediate feedback is given when connections are valid or incorrect, allowing players to learn through trial, correction, and iteration.
+Players interact with the game using both the keyboard and the mouse. The LEFT and RIGHT arrow keys move the playable character (Alex) across the bridge so the player can select a target tile by walking onto it. The mouse is used to click and drag planks during reorder rounds, to press the Submit button, and to choose between the Singly and Doubly buttons when identifying list structure. In Level 3, the keyboard is also used to type a single reassignment statement that the game treats as code. The game is a single player experience where the player solves logic puzzles involving node manipulation. Immediate feedback is given for every submission, allowing players to learn through trial, correction, and iteration.
 
 ## Player Modes
 
-- Main Menu: Allows players to start the game by choosing a type of linked list challenge.
-- Gameplay Mode: Players solve linked list puzzles involving traversal, insertion, deletion, and structure identification. As players answer questions correctly, the difficulty increases by introducing more complex linked list operations and larger node structures.
-- Game Over/Results: After the player makes too many mistakes or completes a sequence of puzzles, the game displays the player's performance statistics such as number of correct answers, accuracy, and highest difficulty reached.
+- Main Menu: Displays the game logo and a Start button. Pressing Start (or Enter) takes the player into Level 1.
+- Gameplay Mode: A three-level progression where each level introduces a new way of interacting with linked lists. Level 1 teaches traversal with arrow-key movement and ends with reorder-by-drag puzzles. Level 2 introduces structure identification (singly vs. doubly) and pointer-aware insertion, deletion, and predecessor questions. Level 3 asks the player to type a single reassignment statement that mutates the bridge. Each level opens with a Bird tutor popup that explains the new mechanic and requires a fixed number of correct answers (8, 8, then 6) before Alex automatically walks off the right edge of the screen and the next scene begins.
+- Game Over: After completing Level 3, the game transitions to a Game Over screen that signals the end of the run.
 
 # Gameplay Objectives
 
 - Primary Objective #1:
-    - Description: Construct or repair a bridge of nodes so that all nodes are correctly connected and traversable from the head node.
+    - Description: Identify and demonstrate the structure of the linked list, including whether it is singly or doubly linked, the order of values along the chain, and (in Level 3) the typed code that produces a desired pointer change.
     - Alignment: Supports learning objectives related to identifying linked list structures and pointer relationships.
 - Primary Objective #2:
-    - Description: Correctly insert or remove nodes without breaking the overall linked list structure.
-    - Alignment: Directly aligns with insertion and deletion learning objectives
+    - Description: Correctly identify the node to insert after, the node to remove, or the predecessor whose `->next` would have to change, without breaking the overall linked list structure.
+    - Alignment: Directly aligns with insertion and deletion learning objectives.
 - Primary Objective #3:
-    - Description: Follow traversal instructions and identify the correct resulting node.
+    - Description: Follow traversal instructions like `head->next->next` (or `n3->prev->prev`) and walk Alex onto the correct resulting node.
     - Alignment: Supports the linked list traversal learning objective.
 
 # Procedures/Actions
 
-Players interact with the game primarily using a mouse. The player is presented with a linked list structure represented visually as connected bridge tiles (nodes). Each tile contains pointer connectors that represent the relationship between nodes.
+Players interact with the game using a combination of keyboard and mouse. The player is presented with a linked list structure represented visually as connected bridge tiles (nodes). Each tile is joined to the next by a rope that represents the `next` pointer (and, for doubly linked lists, a `<- prev` arrow under each plank).
 
 Players can perform several actions during gameplay:
 
-- Drag pointer connectors between nodes to repair or modify the linked list
-- Insert new nodes into the linked list at valid positions
-- Remove nodes from the linked list while maintaining a valid structure
-- Follow traversal instructions to determine which node is reached
-- On some levels, make the players write code to build the bridge
-- On some levels, make the players write code that correctly traverses the bridge in a certain order
-- Submit their answer to confirm the solution
-- Progress to the next puzzle if the solution is correct
+- Walk Alex along the bridge with the LEFT and RIGHT arrow keys to select the tile under his feet
+- Click and drag a plank to a new position to reorder the chain (Level 1 drag rounds)
+- Click the Singly or Doubly button to commit a structure-identification answer (Level 2)
+- Walk Alex onto the tile to be deleted, the tile to insert after, or the predecessor whose `->next` would have to change (Level 2)
+- Type a single C-style reassignment statement such as `curr->next = curr->next->next;` to mutate the bridge (Level 3); typing a period (`.`) is auto-converted to `->`
+- Press the Submit button (or Enter, in Level 3) to commit the current answer
+- Progress to the next puzzle if the solution is correct; otherwise, view a feedback message and continue to a new randomized puzzle
 
 # Rules
 
-Players are presented with puzzles involving linked list structures. Each puzzle asks the player to perform a specific task such as identifying the correct node after traversal, inserting a node in the correct location, or deleting a node while maintaining proper pointer connections.
+Players are presented with puzzles involving linked list structures. Each puzzle asks the player to perform a specific task such as identifying the correct node after traversal, finding the predecessor whose pointer must be rewired, identifying whether the list is singly or doubly linked, or typing a single reassignment statement that performs an operation.
 
-The player must ensure that all nodes remain connected correctly so the linked list remains valid. Incorrect pointer connections may cause the structure to break, preventing traversal from reaching all nodes.
+The bridge always remains a valid linked list — reordering a plank automatically re-chains the `next` pointers, and a typed reassignment statement is only applied to the bridge if it matches the goal pattern. Wrong answers do not break the structure; they simply replay the round with a new randomized puzzle.
 
-The game tracks the number of incorrect answers the player makes. If the player exceeds the allowed number of mistakes, the game ends and the player is shown their results. Correct answers increase the player's score and gradually increase the difficulty of future puzzles.
+The game tracks correct and incorrect answers on a scoreboard for each level. Correct answers count toward the per-level goal (8 in Level 1, 8 in Level 2, 6 in Level 3); incorrect answers do not end the game, but they do increment the visible incorrect counter. Once the required number of correct answers is reached, Alex automatically walks off the right edge of the screen and the next level (or the Game Over scene) begins.
 
 # Objects/Entities
 
-- Node Tiles: Represent elements in the linked list and contain stored values.
-- Pointer Connectors: Visual links representing the next or prev references between nodes.
-- Head Indicator: Marks the starting point of traversal within the linked list.
-- Tail Indicator: Marks the final node of the linked list.
-- Insertable Nodes: New nodes that appear during insertion puzzles.
-- Removable Nodes: Nodes that must be deleted during deletion puzzles.
-- Traversal Marker: A visual indicator that moves along nodes during traversal tasks.
-- Score Counter: Tracks the number of correct answers achieved by the player.
+- Node Tiles: Wooden planks that represent nodes in the linked list and contain stored integer values.
+- Pointer Connectors: Ropes between planks representing the `next` reference, plus visual `<- prev` arrows under each plank when the list is doubly linked.
+- Head Label: Marks the starting node of the linked list above the leftmost tile.
+- Tail Label: Marks the final node of the linked list above the rightmost tile.
+- Curr Label: In Level 3, marks the single tile that the player's typed reassignment statement is acting on.
+- Alex: The playable character that the player walks across the bridge using the arrow keys.
+- Bird Tutor: A speaking bird that appears in each level's intro popup to introduce the level's rules.
+- Scoreboard: Tracks correct and incorrect answers and shows progress toward the level goal (for example, "Correct: 4 / 8").
+- Structure Badge: A persistent label above the bridge in Level 2 that shows whether the current bridge is singly or doubly linked.
+- Live Code Panel: A small code panel on the top right of the screen that always mirrors the current bridge as code and shows the goal pattern for the round.
 
 ## Core Gameplay Mechanics (Detailed)
 
-- Pointer Connection System: Players interact with the linked list by dragging pointer connectors between nodes. These connectors represent the next or prev relationships within the linked list. Correct pointer connections allow the structure to function properly, while incorrect connections break the list and prevent traversal.
-- Traversal Challenges: Players are given traversal expressions similar to programming syntax, such as head -> next -> next. The player must determine which node the traversal ends on by following the pointer connections step by step through the linked list.
-- Node Insertion and Deletion: Players modify the linked list by inserting new nodes into the correct position or removing nodes from the structure. To succeed, players must update the surrounding pointer connections so the linked list remains valid and traversable.
+- Pointer Connection System: The bridge always shows the current linked list as connected planks with rope-style pointers between them. Reordering a plank or typing a reassignment statement automatically updates the rope connections, allowing players to see how a single change reroutes traversal. The Live Code Panel on the right of the screen mirrors the bridge as code at all times so players can connect the visual pointers to the syntactic ones.
+- Traversal Challenges: Players are given traversal expressions like `head->next->next` or `n3->prev->prev->next`. The player follows the ropes step by step and walks Alex onto the tile they believe is the result, then presses Submit. After submission, the game animates Alex along the correct path so the code/visual mapping is reinforced.
+- Node Identification for Insertion and Deletion: Players are not asked to physically place new tiles. Instead, the puzzle states what should happen (insert a value in sorted order, delete a value, or find the predecessor that would need to be rewired) and the player walks Alex onto the tile that satisfies the rule.
+- Tile Reordering: On Level 1 reorder rounds, the player click-and-drags one plank along the bridge to a new slot. When the plank is released, the chain re-chains itself in left-to-right order so the next pointers update automatically.
+- Typed Reassignment (Level 3): One tile on the bridge is labeled `curr`. The player types a single C-style reassignment statement such as `curr->next = curr->next->next;` into the input box at the bottom of the screen. If the typed statement (after whitespace normalization) matches the goal pattern, the bridge animates the resulting pointer change before the next round begins.
 
 ## Feedback
 
-Players receive immediate visual feedback after performing actions. Correct pointer connections may glow or highlight to indicate a valid linked list structure. Incorrect connections may flash red or break visually to show that the structure is invalid. Traversal tasks may include animated movement across nodes so the player can visually follow the path taken through the linked list.
+Players receive immediate visual and audio feedback after every submission. Correct tiles flash green, a chime plays, and the scoreboard increments the correct counter. Incorrect submissions flash the chosen tile red, shake and flash the camera, play an error buzz, and reveal which tile (or which structure type, or which expected line of code) was the correct answer. Level 1 traversal tasks animate Alex across the path described by the code so the player can visually follow which tiles the code visits. The scoreboard at the top right always shows correct and incorrect counts toward the level's goal.
 
-After completing puzzles or reaching the end of a game session, players are shown performance statistics such as the number of correct answers, accuracy percentage, and the highest difficulty level reached. This allows players to track their improvement as they progress through increasingly difficult linked list challenges.
+When the player has answered the required number of puzzles correctly for the current level, Alex automatically walks to the right edge of the screen and the game transitions to the next level. After Level 3 the game transitions to a Game Over screen that signals the end of the run.
 
 # Story and Gameplay
 
 ## Presentation of Rules
 
-The game introduces players to linked list mechanics gradually through puzzle progression. Early puzzles focus on simple traversal tasks involving small linked lists. As players solve puzzles correctly, the game introduces more complex actions such as inserting and deleting nodes. By learning through interaction with the linked list structures, players develop an intuitive understanding of how node connections and pointer relationships function.
+The game introduces players to linked list mechanics gradually across three levels. Each level opens with a Bird tutor popup that explains the new mechanic. Level 1 teaches traversal with arrow-key movement and ends with reorder-by-drag puzzles. Level 2 introduces singly vs. doubly structure identification along with pointer-aware insertion, deletion, and predecessor questions. Level 3 turns the puzzles into typed code that mutates the bridge. By moving from "walk to the answer," to "click a structure type," to "write the code," players progress from intuition to formal syntax while always seeing the bridge react to their choices.
 
 ## Presentation of Content
 
@@ -255,12 +271,12 @@ A traveler needs to cross a broken bridge made of connected tiles, but many of t
 ![Alt text](storyboard.JPG)
 A rough sketch of a storyboard of the game
 
-- Scene 1: The initial state of the game in which the player is given a group of bridge tiles (nodes) and must place and connect them correctly through a click-and-drag interaction
-- Scene 2: The second scene shows a successfully completed bridge
-- Scene 3: The third scene gives the player code statements that show the correct order in which to travel the bridge so they do not get blown off
-- Scene 4: Scene 4 is an example of the player landing on the correct tile node and progressing to the next stage
-- Scene 5: The 5th scene is a different level in which the player is given a broken bridge and must correctly connect the tiles
-- Scene 6: The 6th scene shows what happens when the bridge is incorrectly fixed: one of the pointers snaps, the bridge collapses, and the player falls into the river
+- Scene 1: The player launches the game, sees the main menu, and presses Start to enter Level 1. The Bird tutor pops up to introduce the basic plank/rope metaphor and the arrow-key controls.
+- Scene 2: In Level 1, the player walks Alex across a chain of planks using the arrow keys, following a `head->next->next` expression shown at the top of the screen, then presses Submit.
+- Scene 3: On a Level 1 reorder round, the player click-and-drags the plank holding the largest value to the right end of the bridge; the Live Code Panel updates to show the new chain order.
+- Scene 4: In Level 2, the Bird tutor introduces structure questions; the player presses Singly or Doubly to commit an answer and submits, with the persistent Structure Badge above the bridge confirming the result.
+- Scene 5: In a Level 2 delete or predecessor round, the player walks Alex onto the tile that satisfies the puzzle (the value to delete, the predecessor whose `->next` would rewire, or the tile to insert after) and presses Submit. Correct tiles flash green; incorrect submissions shake the camera.
+- Scene 6: In Level 3, the player types `curr->next = curr->next->next;` into the input box and presses Enter; the bridge visually skips the tile after `curr`, and after enough correct typed answers Alex walks off the right edge of the screen to reach the Game Over scene.
 
 # Assets Needed
 
@@ -275,30 +291,27 @@ The overall atmosphere should feel adventurous and outdoorsy, with warm natural 
 ## Graphical
 
 - Characters List:
-    - Alex, a playable character with brown hair, blue eyes, a red striped shirt, jeans, and red converse-like shoes. Standard all around character ![Alt text](Alex_standing.png)
-    - Amy, another playable character with long curly black hair, yellow shirt, and brown pants.
-    - Neo, another playable character with a blond hair, a blue shirt, and black pants
+    - Alex, the single playable character. Pixel-art style with brown hair, blue eyes, a red striped shirt, jeans, and red converse-like shoes. Walks left and right across the bridge and has a falling sprite for failure feedback. ![Alt text](Alex_standing.png)
+    - Bird Tutor, a speaking bird sprite that appears in each level's intro popup to introduce that level's rules.
 - Textures
-    - Node tile textures
-    - Pointer connector textures
-    - Highlight effects for valid connections
-    - Error effects for invalid connections
+    - Node tile (wooden plank) textures
+    - Pointer connector (rope) graphics drawn at runtime, including arrowheads and `<- prev` arrows for doubly linked rounds
+    - Highlight effects for valid connections (green flash on the answer tile)
+    - Error effects for invalid connections (red flash, camera shake, and camera flash)
 - Environment Art/Textures
-    - Mountain range background
-    - Interface panels for puzzle instructions
+    - Mountain range background image
+    - Cliff sprites on the left and right edges that frame the bridge
+    - Interface panels for the puzzle prompt banner, the Live Code Panel, and the intro popup
 
 ## Audio
 
 - Music List (Ambient sound)
-    - Main Menu: calm digital ambience
-    - Gameplay: light puzzle-themed background music
-    - Results screen: short completion theme
+    - Gameplay: a single looping retro-lounge style background track (`Week 1.5 - Super Retro Lounge.ogg`) that begins in Level 1 and continues across Level 2 and Level 3.
 - Sound List (SFX)
-    - Pointer connected: soft click
-    - Incorrect connection: error buzz
-    - Node inserted: pop or placement sound
-    - Node removed: dissolve sound
-    - Puzzle complete: success chime that invokes successful journey Example: https://www.youtube.com/watch?v=-sspGNVHl8E&list=RD-sspGNVHl8E&start_radio=1
+    - Button click: plays on Submit and menu interactions
+    - Correct chime: plays when an answer is correct, alongside the green tile flash
+    - Error buzz: plays when an answer is incorrect, alongside the red tile flash, camera shake, and camera flash
+    - Reference for success chime tone: https://www.youtube.com/watch?v=-sspGNVHl8E&list=RD-sspGNVHl8E&start_radio=1
 
 # Metadata
 
