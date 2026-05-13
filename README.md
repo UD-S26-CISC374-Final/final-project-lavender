@@ -21,7 +21,8 @@ The player will begin by following the instructions at the top of the screen and
 
 # Screenshot
 
-TEXT GOES HERE
+docs\small.png
+docs\large.png
 
 # Gameplay Video
 
