@@ -21,8 +21,8 @@ The player will begin by following the instructions at the top of the screen and
 
 # Screenshot
 
-![Alt Text](docs\small.png)
-![Alt Text](docs\large.png)
+![Alt Text](/docs/small.png)
+![Alt Text](/docs/large.png)
 
 # Gameplay Video
 
