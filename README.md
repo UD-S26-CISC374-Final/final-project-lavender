@@ -26,11 +26,11 @@ The player will begin by following the instructions at the top of the screen and
 
 # Gameplay Video
 
-TEXT GOES HERE
+(https://drive.google.com/file/d/1tJY1dri60626CVDztv65Tl76l2PVqMAy/view?usp=sharing)
 
 # Educational Game Design Document
 
-Link to our [egdd](Educational Game Design Document)
+https://github.com/emjr05/Linked-Lunacy-EGDD
 
 # Credits
 
