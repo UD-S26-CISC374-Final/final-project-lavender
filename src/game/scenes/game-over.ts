@@ -48,7 +48,7 @@ export class GameOver extends Scene {
         EventBus.emit("current-scene-ready", this);
 
         this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
-            this.mainMenuButton?.removeAllListeners();
+            this.mainMenuButton.removeAllListeners();
             this.input.keyboard?.off("keydown-ENTER");
         });
     }
