@@ -4,6 +4,7 @@ import { Level1 as MainGame } from "./scenes/level1";
 import { Level2 } from "./scenes/level2";
 import { Level3 } from "./scenes/level3";
 import { MainMenu } from "./scenes/main-menu";
+import { Winning } from "./scenes/winning";
 import { AUTO, Game } from "phaser";
 import { Preloader } from "./scenes/preloader";
 
@@ -15,7 +16,16 @@ const config: Phaser.Types.Core.GameConfig = {
     type: AUTO,
     parent: "game-container",
     backgroundColor: "#ffffff",
-    scene: [Boot, Preloader, MainMenu, MainGame, Level2, Level3, GameOver],
+    scene: [
+        Boot,
+        Preloader,
+        MainMenu,
+        MainGame,
+        Level2,
+        Level3,
+        Winning,
+        GameOver,
+    ],
     scale: {
         parent: "game-container",
         mode: Phaser.Scale.FIT,

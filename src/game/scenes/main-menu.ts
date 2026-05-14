@@ -18,6 +18,10 @@ export class MainMenu extends Scene implements ChangeableScene {
         this.background = this.add.image(512, 384, "background");
 
         this.logo = this.add.image(512, 300, "logo").setDepth(100);
+        const maxLogoW = 1040;
+        if (this.logo.width > maxLogoW) {
+            this.logo.setScale(maxLogoW / this.logo.width);
+        }
 
         this.title = this.add
             .text(512, 460, "Main Menu", {

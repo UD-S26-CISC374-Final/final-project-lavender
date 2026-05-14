@@ -17,6 +17,10 @@ import type { LinkedListModel, NodeId } from "../model/linked-list-model";
 import { BridgePlaceholderView } from "../objects/bridge-placeholder-view";
 import { getForwardChainNodeIds } from "../logic/forward-chain";
 import { codeBridgeDiagram } from "../logic/code-from-model";
+import {
+    runAlexWrongFallToScene,
+    showBriefAlexWrong,
+} from "../player-strike-feedback";
 
 type Level1QuestionType =
     | "traversal_click"
@@ -65,6 +69,8 @@ export class Level1 extends Scene {
     private cursors?: Phaser.Types.Input.Keyboard.CursorKeys;
     private readonly bridgePlayerY = 365;
     private transitioning = false;
+    /** True during the 3-strike fall so stale round timers cannot clobber the sequence. */
+    private strikeOutPending = false;
     private introActive = false;
     private introLayer?: Phaser.GameObjects.Container;
     private arrowTutorialLayer?: Phaser.GameObjects.Container;
@@ -499,6 +505,18 @@ export class Level1 extends Scene {
         this.feedbackBackdrop.setVisible(false);
     }
 
+    private beginThirdStrikeGameOver(): void {
+        this.strikeOutPending = true;
+        this.transitioning = true;
+        this.submitButton.disableInteractive();
+        const p = this.player;
+        if (p) {
+            runAlexWrongFallToScene(this, p, "GameOver");
+        } else {
+            this.scene.start("GameOver");
+        }
+    }
+
     private submitCurrentAnswer(): void {
         if (this.transitioning) {
             return;
@@ -531,6 +549,15 @@ export class Level1 extends Scene {
             return;
         }
 
+        if (!isCorrect && this.incorrectCount >= 3) {
+            this.beginThirdStrikeGameOver();
+            return;
+        }
+
+        if (!isCorrect && this.player) {
+            showBriefAlexWrong(this, this.player);
+        }
+
         // For traversal-style questions, animate the correct path so the
         // player visually connects the code (head->next->next) with the
         // visited nodes. Then start the next round.
@@ -539,6 +566,9 @@ export class Level1 extends Scene {
             this.transitioning = true;
             this.submitButton.disableInteractive();
             this.time.delayedCall(animMs + 350, () => {
+                if (this.strikeOutPending) {
+                    return;
+                }
                 this.transitioning = false;
                 this.submitButton.setInteractive({ useHandCursor: true });
                 this.startNewRound();
@@ -550,6 +580,9 @@ export class Level1 extends Scene {
         this.transitioning = true;
         this.submitButton.disableInteractive();
         this.time.delayedCall(800, () => {
+            if (this.strikeOutPending) {
+                return;
+            }
             this.transitioning = false;
             this.submitButton.setInteractive({ useHandCursor: true });
             this.startNewRound();
@@ -628,6 +661,7 @@ export class Level1 extends Scene {
         this.correctCount = 0;
         this.incorrectCount = 0;
         this.transitioning = false;
+        this.strikeOutPending = false;
         this.introActive = true;
         this.playerHasMoved = false;
         this.questionQueue = [];

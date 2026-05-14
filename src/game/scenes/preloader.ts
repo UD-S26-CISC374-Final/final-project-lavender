@@ -26,7 +26,7 @@ export class Preloader extends Scene {
         //  Load the assets for the game - Replace with your own assets
         this.load.setPath("assets");
 
-        this.load.image("logo", "logo.png");
+        this.load.image("logo", "LinkedLunancy.png");
         this.load.image("star", "star.png");
         this.load.image("phaser-logo", "phaser-logo.png");
         // Tile image for bridge planks (add a pixel-art tile.png into public/assets)
@@ -36,14 +36,19 @@ export class Preloader extends Scene {
             frameWidth: 128,
             frameHeight: 128,
         });
-        this.load.spritesheet("alex-falling", "Alex-falling.png", {
-            frameWidth: 32,
-            frameHeight: 38,
-        });
         this.load.spritesheet("bird-speaking", "bird-speaking-Sheet.png", {
             frameWidth: 320,
             frameHeight: 180,
         });
+        this.load.image("alex_shocked", "Alex_shocked.png");
+        this.load.image("alex_wrong", "Alex_wrong.png");
+        this.load.image("ending1", "ending1.png");
+        this.load.image("ending2", "ending2.png");
+        this.load.image("ending3", "ending3.png");
+        this.load.image("ending4", "ending4.png");
+        this.load.image("ending5", "ending5.png");
+        this.load.image("ending6", "ending6.png");
+        this.load.image("ending7", "ending7.png");
         this.load.audio("bgAudio", "Week 1.5 - Super Retro Lounge.ogg");
         this.load.audio(
             "errorSound",

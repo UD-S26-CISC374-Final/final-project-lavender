@@ -9,6 +9,10 @@ import type { LinkedListModel, NodeId } from "../model/linked-list-model";
 import { getForwardChainNodeIds } from "../logic/forward-chain";
 import { codeBridgeDiagram } from "../logic/code-from-model";
 import { generateRandomSinglyChain } from "../logic/random-singly-bridge";
+import {
+    runAlexWrongFallToScene,
+    showBriefAlexWrong,
+} from "../player-strike-feedback";
 
 type Level3TaskType =
     | "skip_next"
@@ -87,6 +91,8 @@ export class Level3 extends Scene {
     private acceptingInput = true;
     private readonly bridgePlayerY = 365;
     private transitioning = false;
+    /** True during the 3-strike fall so stale round timers cannot clobber the sequence. */
+    private strikeOutPending = false;
     private introActive = false;
     private introLayer?: Phaser.GameObjects.Container;
     private taskQueue: Level3TaskType[] = [];
@@ -338,8 +344,27 @@ export class Level3 extends Scene {
         this.feedbackBackdrop.setVisible(false);
     }
 
+    private beginThirdStrikeGameOver(): void {
+        this.strikeOutPending = true;
+        this.transitioning = true;
+        this.acceptingInput = false;
+        this.submitButton.disableInteractive();
+        const p = this.player;
+        if (p) {
+            runAlexWrongFallToScene(this, p, "GameOver");
+        } else {
+            this.scene.start("GameOver");
+        }
+    }
+
     private submitCurrentAnswer(): void {
         if (this.transitioning) {
+            return;
+        }
+        if (this.introActive) {
+            return;
+        }
+        if (!this.acceptingInput) {
             return;
         }
         const task = this.currentTask;
@@ -370,26 +395,44 @@ export class Level3 extends Scene {
         this.updateScoreboardText();
 
         if (this.correctCount >= QUESTION_GOAL) {
-            this.autoWalkToRightAndStart("GameOver");
+            this.autoWalkToRightAndStart("Winning");
+            return;
+        }
+
+        if (!correct && this.incorrectCount >= 3) {
+            this.beginThirdStrikeGameOver();
             return;
         }
 
         const nextModel = this.applyTypedAnswerIfCorrect();
         if (nextModel) {
             this.acceptingInput = false;
+            this.submitButton.disableInteractive();
             this.currentTask = { ...this.currentTask!, model: nextModel };
             this.applyModelAndRedraw(nextModel);
             this.time.delayedCall(900, () => {
+                if (this.strikeOutPending) {
+                    return;
+                }
                 this.acceptingInput = true;
+                this.submitButton.setInteractive({ useHandCursor: true });
                 this.startNewRound();
             });
             return;
         }
 
         if (!correct) {
+            if (this.player) {
+                showBriefAlexWrong(this, this.player);
+            }
             this.acceptingInput = false;
+            this.submitButton.disableInteractive();
             this.time.delayedCall(1500, () => {
+                if (this.strikeOutPending) {
+                    return;
+                }
                 this.acceptingInput = true;
+                this.submitButton.setInteractive({ useHandCursor: true });
                 this.startNewRound();
             });
             return;
@@ -601,6 +644,7 @@ export class Level3 extends Scene {
         this.correctCount = 0;
         this.incorrectCount = 0;
         this.transitioning = false;
+        this.strikeOutPending = false;
         this.taskQueue = [];
 
         this.camera = this.cameras.main;

@@ -10,6 +10,10 @@ import { BridgePlaceholderView } from "../objects/bridge-placeholder-view";
 import { getForwardChainNodeIds } from "../logic/forward-chain";
 import { codeBridgeDiagram } from "../logic/code-from-model";
 import {
+    runAlexWrongFallToScene,
+    showBriefAlexWrong,
+} from "../player-strike-feedback";
+import {
     generateDeleteByValueTask,
     generateInsertAfterTask,
     generatePredecessorClickTask,
@@ -65,6 +69,8 @@ export class Level2 extends Scene {
     private cursors?: Phaser.Types.Input.Keyboard.CursorKeys;
     private readonly bridgePlayerY = 365;
     private transitioning = false;
+    /** True during the 3-strike fall so stale round timers cannot clobber the sequence. */
+    private strikeOutPending = false;
     private introActive = false;
     private introLayer?: Phaser.GameObjects.Container;
     private questionQueue: Level2QuestionType[] = [];
@@ -321,8 +327,25 @@ export class Level2 extends Scene {
         }
         this.bridgeView.flashCorrect(targetId);
         this.time.delayedCall(700, () => {
+            if (this.strikeOutPending) {
+                return;
+            }
             this.startNewRound();
         });
+    }
+
+    private beginThirdStrikeGameOver(): void {
+        this.strikeOutPending = true;
+        this.transitioning = true;
+        this.submitButton.disableInteractive();
+        this.singlyButton.disableInteractive();
+        this.doublyButton.disableInteractive();
+        const p = this.player;
+        if (p) {
+            runAlexWrongFallToScene(this, p, "GameOver");
+        } else {
+            this.scene.start("GameOver");
+        }
     }
 
     private submitCurrentAnswer(): void {
@@ -361,6 +384,15 @@ export class Level2 extends Scene {
             return;
         }
 
+        if (!correct && this.incorrectCount >= 3) {
+            this.beginThirdStrikeGameOver();
+            return;
+        }
+
+        if (!correct && this.player) {
+            showBriefAlexWrong(this, this.player);
+        }
+
         // Special case: animate the deletion if correct on a delete question.
         this.transitioning = true;
         this.submitButton.disableInteractive();
@@ -368,6 +400,9 @@ export class Level2 extends Scene {
         this.doublyButton.disableInteractive();
 
         const onAdvance = () => {
+            if (this.strikeOutPending) {
+                return;
+            }
             this.transitioning = false;
             this.submitButton.setInteractive({ useHandCursor: true });
             // The structure buttons re-enable themselves only when the task asks for them.
@@ -377,6 +412,9 @@ export class Level2 extends Scene {
         if (correct && this.currentTask?.type === "delete_by_value_click") {
             this.animateDeletionAndAdvance();
             this.time.delayedCall(900, () => {
+                if (this.strikeOutPending) {
+                    return;
+                }
                 this.transitioning = false;
                 this.submitButton.setInteractive({ useHandCursor: true });
             });
@@ -626,6 +664,7 @@ export class Level2 extends Scene {
         this.correctCount = 0;
         this.incorrectCount = 0;
         this.transitioning = false;
+        this.strikeOutPending = false;
         this.questionQueue = [];
 
         this.camera = this.cameras.main;
